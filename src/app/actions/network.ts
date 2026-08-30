@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { newId, nowISO, toJSON } from "@/lib/utils";
 import { logActivity } from "@/lib/activity";
+import { scoreLead } from "@/lib/scoring";
 
 export async function createOrganization(formData: FormData) {
   const user = await requireUser();
@@ -53,16 +54,35 @@ export async function createLead(formData: FormData) {
   if (!solution) return { error: "Describe the relevant solution or capability." };
   const db = await getDb();
   const id = newId("led");
+  const orgId = String(formData.get("organization_id") || "") || null;
+  const personId = String(formData.get("person_id") || "") || null;
+  const observedEvidence = String(formData.get("observed_evidence") || "") || null;
+  const org = orgId ? await db.get<{ name: string; industry?: string; location?: string; notes?: string }>(
+    `SELECT name, industry, location, notes FROM organizations WHERE id = ?`, [orgId]
+  ) : null;
+
+  const result = scoreLead({
+    organizationName: org?.name || "Unknown organization",
+    industry: org?.industry || null,
+    location: org?.location || null,
+    description: org?.notes || null,
+    solution,
+    observedEvidenceCount: observedEvidence ? observedEvidence.split(/\n|;/).filter((s) => s.trim()).length : 0,
+    evidenceSources: observedEvidence ? 1 : 0,
+    hasPublicContact: !!org,
+    hasKnownContact: !!personId,
+  });
+
   await db.insert("leads", {
     id, user_id: user.id,
-    organization_id: String(formData.get("organization_id") || "") || null,
-    person_id: String(formData.get("person_id") || "") || null,
+    organization_id: orgId,
+    person_id: personId,
     solution,
-    observed_evidence: String(formData.get("observed_evidence") || "") || null,
+    observed_evidence: observedEvidence,
     inference: String(formData.get("inference") || "") || null,
     hypothesis: String(formData.get("hypothesis") || "") || null,
     confidence: parseFloat(String(formData.get("confidence") || "0.5")) || 0.5,
-    score: parseFloat(String(formData.get("score") || "50")) || 50,
+    score: result.score,
     status: "new",
     created_at: nowISO(),
   });

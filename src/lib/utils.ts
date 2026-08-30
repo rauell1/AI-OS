@@ -41,9 +41,9 @@ export function toJSON(value: any): string {
   return JSON.stringify(value ?? null);
 }
 
-export function daysUntil(date?: string | null): number | null {
+export function daysUntil(date?: string | Date | null): number | null {
   if (!date) return null;
-  const d = new Date(date).getTime();
+  const d = (date instanceof Date ? date : new Date(date)).getTime();
   if (Number.isNaN(d)) return null;
   return Math.ceil((d - Date.now()) / (1000 * 60 * 60 * 24));
 }

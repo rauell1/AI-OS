@@ -111,7 +111,8 @@ directly.
 | `npm run db:migrate` | Report backend, connection target and applied migrations |
 | `npm run db:seed` | Load the master profile (see below) |
 | `npm run db:reset` | Remove the seeded user |
-| `npm run test:scoring` | Scoring smoke test |
+| `npm run test` | Run the vitest suite once (27 tests: scoring, requirement matching, dedupe, email classification, crypto) |
+| `npm run test:watch` | vitest in watch mode |
 
 Scripts load `.env.local` then `.env` themselves; real environment variables win.
 
@@ -171,16 +172,32 @@ src/
     schema.ts     dialect-neutral DDL
     session.ts    JWT session verification (no DB dependency)
     auth.ts       accounts, sessions, password hashing
-    scoring.ts    opportunity and task scoring
+    scoring/      evidence-based, deterministic scoring engines (job, scholarship,
+                  lead, task priority, requirement matching, profile index)
+    engines/      dedupe, email classification, CV requirement extraction
     brief.ts      daily brief and dashboard metrics
   middleware.ts   session gate
+tests/            vitest: scoring, requirement matching, dedupe, email, crypto
 docs/
-  SALVAGE.md      work removed from main by an early merge, and how to recover it
+  SALVAGE.md      work removed from main by an early merge, and what was recovered
   archive/        superseded design documents, kept for their reasoning
 ```
 
+## Scoring engine
+
+`src/lib/scoring/` is deterministic and evidence-based: every job, scholarship
+and lead score is a weighted sum of named factors, each with a human-readable
+detail and (where applicable) evidence pointers back into the master profile
+(a skill, an employer, a project). `matchRequirement()` in `scoring/match.ts`
+expands domain synonyms (e.g. "EV" ↔ "electric vehicle" ↔ "charging") and
+classifies each requirement as `STRONG` / `MODERATE` / `DEVELOPING` / `MISSING`
+— a developing skill is never reported as expert, and an unevidenced
+requirement is never claimed. `src/lib/engines/cv.ts` reuses the same matcher
+to extract requirements from a pasted job description and map each one to
+profile evidence, honestly, for the application workspace.
+
 ## Notes
 
-`docs/SALVAGE.md` records ~8,200 lines from an earlier branch that a merge
-removed from `main`, where to recover them, and what is worth porting — the test
-suite first, since this repository currently has none.
+`docs/SALVAGE.md` records what an earlier merge removed from `main` and what
+was ported back: the vitest suite (27 tests) and the evidence-based scoring
+engines, both adapted from Prisma to this repository's SQL data layer.

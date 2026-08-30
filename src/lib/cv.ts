@@ -1,4 +1,7 @@
 import type { MasterProfile } from "./profile";
+import { matchRequirement } from "./scoring/match";
+import { proficiencyToLevel, type ProfileIndex } from "./scoring/profile-index";
+import { parseJSON } from "./utils";
 
 export interface RequirementMatch {
   requirement: string;
@@ -7,41 +10,83 @@ export interface RequirementMatch {
   note: string;
 }
 
-function collectEvidence(profile: MasterProfile): { text: string; proficiency?: string }[] {
-  const out: { text: string; proficiency?: string }[] = [];
-  for (const s of profile.skills) out.push({ text: s.name, proficiency: s.proficiency });
-  for (const e of profile.employment) {
-    out.push({ text: e.title });
-    const resp = Array.isArray(e.responsibilities_json) ? e.responsibilities_json : [];
-    for (const r of resp as string[]) out.push({ text: r });
-  }
-  for (const ed of profile.education) out.push({ text: `${ed.institution} ${ed.degree} ${ed.field}` });
-  for (const p of profile.projects) out.push({ text: `${p.name} ${p.overview || ""}` });
-  return out;
+/** Build a scoring-engine ProfileIndex from an already-loaded MasterProfile (no extra queries). */
+export function profileIndexFromMasterProfile(profile: MasterProfile): ProfileIndex {
+  const yearsTotal = profile.employment.reduce((sum: number, e: any) => {
+    const start = e.start_date ? new Date(e.start_date).getTime() : Date.parse("2021-01-01");
+    const end = e.current ? Date.now() : e.end_date ? new Date(e.end_date).getTime() : start;
+    return sum + Math.max(0, (end - start) / (365.25 * 86400000));
+  }, 0);
+
+  const employers = profile.organizations.length
+    ? profile.organizations.map((o: any) => o.name)
+    : [];
+
+  const textBlob = [
+    profile.skills.map((s: any) => `${s.name} ${s.category ?? ""}`).join(" "),
+    profile.employment.map((e: any) => e.title).join(" "),
+    employers.join(" "),
+    profile.projects.map((p: any) => `${p.name} ${p.overview ?? ""} ${p.category ?? ""}`).join(" "),
+    profile.education.map((e: any) => `${e.degree ?? ""} ${e.field ?? ""} ${e.institution}`).join(" "),
+    profile.employment.flatMap((e: any) => parseJSON<string[]>(e.responsibilities_json, [])).join(" "),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return {
+    skills: profile.skills.map((s: any) => ({
+      name: s.name,
+      category: s.category ?? undefined,
+      proficiency: proficiencyToLevel(s.proficiency),
+      years: s.years ?? null,
+    })),
+    titles: profile.employment.map((e: any) => e.title),
+    employers,
+    projects: profile.projects.map((p: any) => ({ name: p.name, overview: p.overview })),
+    degrees: profile.education.map((e: any) => ({
+      degree: e.degree || "",
+      field: e.field,
+      institution: e.institution,
+      grade: parseJSON<{ grade?: string; classification?: string }>(e.details_json, {}).grade
+        || parseJSON<{ grade?: string; classification?: string }>(e.details_json, {}).classification,
+    })),
+    certificates: [],
+    sectors: [],
+    hasBachelor: profile.education.some((e: any) => /bachelor|b\.sc|bsc|beng|b\.eng/i.test(`${e.degree ?? ""} ${e.field ?? ""}`)),
+    gradeLevel: "UNKNOWN",
+    yearsTotal: Math.round(yearsTotal * 10) / 10,
+    textBlob,
+  };
 }
 
+const STRENGTH_MAP: Record<string, RequirementMatch["strength"]> = {
+  STRONG: "strong",
+  MODERATE: "partial",
+  DEVELOPING: "developing",
+  MISSING: "missing",
+};
+
+const NOTE_MAP: Record<RequirementMatch["strength"], string> = {
+  strong: "Supported by verified experience.",
+  partial: "Referenced through employment, projects, or a moderate skill match.",
+  developing: "Partial signal only — present as developing exposure, not expertise.",
+  missing: "No direct evidence found in the master profile.",
+};
+
+/**
+ * Evidence-based requirement matching: synonym-aware, honesty-invariant
+ * (a developing skill is never labelled strong). See src/lib/scoring/match.ts.
+ */
 export function matchRequirements(profile: MasterProfile, requirements: string[]): RequirementMatch[] {
-  const corpus = collectEvidence(profile);
+  const index = profileIndexFromMasterProfile(profile);
   return requirements.map((req) => {
-    const needle = req.toLowerCase();
-    const hits = corpus.filter((c) => c.text.toLowerCase().includes(needle) || needle.includes(c.text.toLowerCase()));
-    const skillHit = profile.skills.find((s) => s.name.toLowerCase().includes(needle) || needle.includes(s.name.toLowerCase()));
-    let strength: RequirementMatch["strength"] = "missing";
-    let note = "No direct evidence found in the master profile.";
-    if (skillHit) {
-      const prof = (skillHit.proficiency || "").toLowerCase();
-      if (prof.includes("develop")) { strength = "developing"; note = "Listed as a developing skill, present but not yet expert."; }
-      else if (prof.includes("advanced") || prof.includes("proficient")) { strength = "strong"; note = "Supported by verified experience."; }
-      else { strength = "partial"; note = "Mentioned in profile."; }
-    } else if (hits.length) {
-      strength = "partial";
-      note = "Referenced through employment or projects.";
-    }
+    const m = matchRequirement(req, index);
+    const strength = STRENGTH_MAP[m.strength];
     return {
       requirement: req,
-      evidence: Array.from(new Set(hits.slice(0, 4).map((h) => h.text))).slice(0, 4),
+      evidence: Array.from(new Set(m.evidence.map((e) => e.label))).slice(0, 4),
       strength,
-      note,
+      note: NOTE_MAP[strength],
     };
   });
 }
@@ -72,7 +117,7 @@ export function generateCV(profile: MasterProfile, roleTitle?: string): string {
   for (const e of profile.employment) {
     const dates = `${e.start_date || ""} to ${e.current ? "Present" : e.end_date || ""}`;
     lines.push(`${e.title} — ${e.location || ""} (${dates})`);
-    const resp = Array.isArray(e.responsibilities_json) ? (e.responsibilities_json as string[]) : [];
+    const resp = parseJSON<string[]>(e.responsibilities_json, []);
     for (const r of resp.slice(0, 6)) lines.push(`  - ${r}`);
     lines.push("");
   }
@@ -80,7 +125,7 @@ export function generateCV(profile: MasterProfile, roleTitle?: string): string {
   lines.push("---------");
   for (const ed of profile.education) {
     lines.push(`${ed.degree} in ${ed.field} — ${ed.institution} (${ed.start_year || ""}-${ed.end_year || "present"})`);
-    const d = ed.details_json;
+    const d = parseJSON<{ classification?: string; finalProject?: string }>(ed.details_json, {});
     if (d?.classification) lines.push(`  ${d.classification}`);
     if (d?.finalProject) lines.push(`  Final project: ${d.finalProject}`);
   }

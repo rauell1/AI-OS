@@ -28,3 +28,7 @@ export function decrypt(payload: string): string {
   const dec = Buffer.concat([decipher.update(Buffer.from(dataB64, "base64")), decipher.final()]);
   return dec.toString("utf8");
 }
+
+export function sha256(input: string | Buffer): string {
+  return createHash("sha256").update(input).digest("hex");
+}

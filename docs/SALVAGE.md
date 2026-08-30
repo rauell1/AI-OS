@@ -1,5 +1,18 @@
 # Salvage record: the work PR #2 removed from `main`
 
+> **Update:** items 1 and 2 below (the test suite and the scoring engines) have
+> been ported to `main` — see `src/lib/scoring/`, `src/lib/engines/`, and
+> `tests/`. They were adapted from Prisma to this repository's SQL data layer
+> (`src/lib/db.ts`), not copied verbatim: `profile-index.ts` was rewritten
+> against the real schema, `priority.ts`'s Prisma enums became the lowercase
+> string unions `tasks.status` / `tasks.source` actually use, and the old
+> `src/lib/scoring.ts` was removed so there is exactly one scoring system, not
+> two running in parallel. `main`'s scoring call sites (`actions/opportunities.ts`,
+> `actions/tasks.ts`, `actions/network.ts`, `scripts/seed.ts`, `src/lib/cv.ts`)
+> were rewired to the new engine. Item 4 (AI provider abstraction, integrations,
+> approvals, automations) was left alone, per the original recommendation below.
+
+
 ## What happened
 
 Two Arena branches were developed in parallel from the initial commit `3360aa8`:

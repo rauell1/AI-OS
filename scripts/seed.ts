@@ -3,8 +3,21 @@ import { getDb, runAsSystem } from "../src/lib/db";
 import { newId, nowISO, toJSON, parseJSON } from "../src/lib/utils";
 import { SEED } from "../src/lib/seed-data";
 import { hashPassword } from "../src/lib/auth";
-import { getProfileContext } from "../src/lib/profile";
-import { scoreJob, scoreProgramme, type ProfileContext } from "../src/lib/scoring";
+import { scoreJob, scoreScholarship, buildProfileIndex } from "../src/lib/scoring";
+
+const DEFAULT_PREFERRED_SECTORS = ["renewable energy", "solar", "ev", "electric mobility", "water", "energy", "climate", "sustainability", "data", "software", "infrastructure"];
+const DEFAULT_PREFERRED_GEOS = ["kenya", "nairobi", "east africa", "europe", "remote"];
+const DEFAULT_LANGUAGES = ["English", "Swahili"];
+
+function normalizeFundingType(text?: string): string | undefined {
+  const t = (text || "").toLowerCase();
+  if (!t) return undefined;
+  if (/fully[- ]?funded|full funding/.test(t)) return "FULLY_FUNDED";
+  if (/self[- ]?funded/.test(t)) return "SELF_FUNDED";
+  if (/tuition only/.test(t)) return "TUITION_ONLY";
+  if (/partial|scholarship/.test(t)) return "PARTIAL";
+  return undefined;
+}
 
 async function wipeUser(db: any, email: string) {
   const u = await db.get(`SELECT id FROM users WHERE email = ?`, [email.toLowerCase()]);
@@ -131,7 +144,6 @@ async function main() {
   }
 
   // Skills + evidence (link to org/project/employment by name)
-  const ctx: ProfileContext = await getProfileContext(userId);
   for (const s of SEED.skills) {
     const sid = newId("skl");
     await db.insert("skills", {
@@ -203,9 +215,9 @@ async function main() {
   await db.insert("user_preferences", {
     user_id: userId,
     prefs_json: toJSON({
-      preferredSectors: ctx.preferredSectors,
-      preferredGeos: ctx.preferredGeos,
-      languages: ctx.languages,
+      preferredSectors: DEFAULT_PREFERRED_SECTORS,
+      preferredGeos: DEFAULT_PREFERRED_GEOS,
+      languages: DEFAULT_LANGUAGES,
       opportunityTypes: ["job", "programme", "scholarship", "fellowship", "grant"],
       aiProvider: process.env.AI_DEFAULT_PROVIDER || "openai",
     }),
@@ -214,6 +226,7 @@ async function main() {
   });
 
   // Sample opportunities (real public programmes + a sample job) with scoring
+  const profileIndex = await buildProfileIndex(userId);
   for (const op of SEED.opportunities) {
     const oid = newId("opp");
     const structured = (op.structured || {}) as Record<string, any>;
@@ -240,47 +253,51 @@ async function main() {
       updated_at: nowISO(),
     });
     // Score immediately so the dashboard is meaningful.
-    let score;
-    if (op.type === "job") {
-      score = scoreJob(
-        {
-          title: op.title,
-          description: op.description,
-          requirements: structured.requirements || [],
-          location: op.location,
-          remote: op.remote,
-          compensation: op.compensation,
-          sector: structured.sector,
-          seniority: structured.seniority,
-        },
-        ctx
-      );
-    } else {
-      score = scoreProgramme(
-        {
-          title: op.title,
-          funding: structured.funding,
-          tuitionCovered: structured.tuitionCovered,
-          livingAllowance: structured.livingAllowance,
-          travelAllowance: structured.travelAllowance,
-          englishRequirement: structured.englishRequirement,
-          admissionCompetitiveness: structured.admissionCompetitiveness,
-          careerRelevance: structured.careerRelevance,
-          deadline: op.deadline ?? undefined,
-          applicationFee: structured.applicationFee,
-          field: structured.field,
-        },
-        ctx
-      );
-    }
+    const deadlineAt = op.deadline ? new Date(op.deadline) : null;
+    const result =
+      op.type === "job"
+        ? scoreJob(
+            {
+              title: op.title,
+              requirements: structured.requirements || [],
+              sectorTags: structured.sector ? [structured.sector] : [],
+              location: op.location,
+              remoteMode: op.remote ? "REMOTE" : null,
+              deadlineAt,
+            },
+            profileIndex
+          )
+        : scoreScholarship(
+            {
+              title: op.title,
+              fieldRequirements: structured.field ? [structured.field] : structured.requirements || [],
+              englishRequirement: structured.englishRequirement || null,
+              fundingType: normalizeFundingType(structured.funding) || null,
+              fundingCovers: [
+                ...(structured.tuitionCovered ? ["TUITION"] : []),
+                ...(structured.livingAllowance ? ["STIPEND"] : []),
+                ...(structured.travelAllowance ? ["TRAVEL"] : []),
+              ],
+              applicationFee: structured.applicationFee ?? null,
+              deadlineAt,
+            },
+            profileIndex
+          );
+    const dimensions = result.factors.map((f) => ({
+      key: f.dimension.toLowerCase().replace(/\s+/g, "_"),
+      label: f.dimension,
+      score: f.score,
+      weight: f.weight,
+      note: f.detail,
+    }));
     await db.insert("opportunity_scores", {
       id: newId("osc"),
       opportunity_id: oid,
-      model: "deterministic-v1",
-      overall: score.overall,
-      dimensions_json: toJSON(score.dimensions),
-      explanation: score.explanation.join(" "),
-      recommendation: score.recommendation,
+      model: "evidence-engine-v2",
+      overall: result.score,
+      dimensions_json: toJSON(dimensions),
+      explanation: result.explanation,
+      recommendation: result.label,
       created_at: nowISO(),
     });
   }
