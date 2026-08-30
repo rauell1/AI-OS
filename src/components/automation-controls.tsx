@@ -7,7 +7,7 @@ import { Play, Pause, Plus } from "lucide-react";
 import { Button, Input, Label, NativeSelect, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui";
 import { createRule, toggleRule, runRuleById } from "@/app/actions/automations";
 
-const TRIGGERS = ["daily_brief", "deadline_alerts", "followup_reminders", "weekly_review", "opportunity_scan"];
+const TRIGGERS = ["daily_brief", "integration_sync", "deadline_alerts", "followup_reminders", "weekly_review", "opportunity_scan"];
 const FREQ = ["hourly", "daily", "weekly", "monthly"];
 
 export function CreateAutomation() {

@@ -368,7 +368,7 @@ class PgDatabase implements Database {
 const DB_CACHE_KEY = Symbol.for("rauell-os.database.promise");
 type DbProcess = typeof process & { [DB_CACHE_KEY]?: Promise<Database> };
 const dbProcess = process as DbProcess;
-const SQLITE_BOOTSTRAP_MIGRATION = `${MIGRATION_NAME}_sqlite_bootstrap_v2`;
+const SQLITE_BOOTSTRAP_MIGRATION = `${MIGRATION_NAME}_sqlite_bootstrap_v3`;
 
 async function sqliteSchemaIsCurrent(instance: any): Promise<boolean> {
   const table = instance.exec(

@@ -4,9 +4,9 @@ import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { AppShell } from "@/components/app-shell";
-import { CommandPalette } from "@/components/command-palette";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://ai-os.rauell.systems"),
   title: "Rauell OS — Roy's Personal AI Operating System",
   description: "A unified personal intelligence and productivity platform for Roy Okola Otieno.",
 };
@@ -26,7 +26,7 @@ async function AuthenticatedShell({ user, children }: { user: Awaited<ReturnType
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
-  const isPublic = !user; // login/register handled by middleware; treat missing user as public
+  const isPublic = !user; // login is handled by middleware; treat missing user as public
 
   if (isPublic) {
     return (
@@ -48,7 +48,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Suspense fallback={<AppShell user={user} unread={0} approvals={0}>{children}</AppShell>}>
           <AuthenticatedShell user={user}>{children}</AuthenticatedShell>
         </Suspense>
-        <CommandPalette />
       </body>
     </html>
   );

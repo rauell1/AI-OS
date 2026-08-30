@@ -95,6 +95,15 @@ export async function executeRule(
       await researchOpportunities(user.id);
       result = "Web scraper ran successfully.";
       actions = 1;
+    } else if (rule.trigger === "integration_sync") {
+      const { syncIntegration } = await import("@/lib/integrations");
+      const connected = await db.query(
+        `SELECT id FROM integrations WHERE user_id = ? AND status = 'connected'`,
+        [user.id]
+      );
+      const results = await Promise.all(connected.map((item) => syncIntegration(item.id, user.id)));
+      actions = results.reduce((total, item) => total + Number(item?.imported || 0), 0);
+      result = `${connected.length} connected service(s) synced; ${actions} item(s) tracked.`;
     } else {
       result = "Trigger executed (no specific action).";
       actions = 0;

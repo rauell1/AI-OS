@@ -6,6 +6,8 @@ import { requireUser } from "@/lib/auth";
 import { nowISO, toJSON } from "@/lib/utils";
 import { logActivity } from "@/lib/activity";
 import { providerMeta, syncIntegration, disconnectIntegration, buildAuthUrl, type Provider } from "@/lib/integrations";
+import { cookies } from "next/headers";
+import { randomUUID } from "node:crypto";
 
 export async function getIntegrationStatus() {
   const user = await requireUser();
@@ -27,7 +29,15 @@ export async function getAuthUrl(provider: Provider): Promise<{ url: string | nu
   await requireUser();
   const meta = providerMeta().find((m) => m.key === provider);
   if (!meta?.configured) return { url: null, configured: false };
-  const url = buildAuthUrl(provider, "rauell");
+  const state = randomUUID();
+  cookies().set("rauell_oauth_state", state, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/api/integrations",
+    maxAge: 600,
+  });
+  const url = buildAuthUrl(provider, state);
   return { url, configured: true };
 }
 

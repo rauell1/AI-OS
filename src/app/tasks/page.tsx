@@ -4,7 +4,7 @@ import { getDb } from "@/lib/db";
 import { parseJSON } from "@/lib/utils";
 import { PageHeader } from "@/components/widgets";
 import { Badge, Card, CardContent } from "@/components/ui";
-import { TaskFormDialog } from "@/components/modals";
+import { TaskFormDialog } from "@/components/task-form-dialog";
 import { TaskRow } from "@/components/task-controls";
 import { autoPrioritizeForm } from "@/app/actions/tasks";
 

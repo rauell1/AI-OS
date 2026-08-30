@@ -12,6 +12,7 @@ coverage/
 data/
 !data/.gitkeep
 .arena/
+.codex/
 .vscode/
 .DS_Store
 next-env.d.ts

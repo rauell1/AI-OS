@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
+import { isOwnerEmail } from "./lib/auth-policy";
 
 const COOKIE = "rauell_session";
 
-const PUBLIC_PATHS = ["/login", "/register"];
+const PUBLIC_PATHS = ["/login"];
 
-function secret(): Uint8Array {
-  return new TextEncoder().encode(process.env.AUTH_SECRET || "dev-insecure-secret-change-me");
+function secret(): Uint8Array | null {
+  const configured = process.env.AUTH_SECRET;
+  if (!configured && process.env.NODE_ENV === "production") return null;
+  return new TextEncoder().encode(configured || "dev-insecure-secret-change-me");
 }
 
 export async function middleware(req: NextRequest) {
@@ -17,7 +20,6 @@ export async function middleware(req: NextRequest) {
   }
   if (
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/api/integrations") ||
     // Scheduled trigger: authenticates itself with CRON_SECRET, not a session.
     pathname === "/api/automations/run" ||
     pathname === "/favicon.ico" ||
@@ -28,10 +30,11 @@ export async function middleware(req: NextRequest) {
 
   const token = req.cookies.get(COOKIE)?.value;
   let valid = false;
-  if (token) {
+  const signingSecret = secret();
+  if (token && signingSecret) {
     try {
-      await jwtVerify(token, secret(), { issuer: "rauell-os" });
-      valid = true;
+      const { payload } = await jwtVerify(token, signingSecret, { issuer: "rauell-os" });
+      valid = typeof payload.sub === "string" && typeof payload.email === "string" && isOwnerEmail(payload.email);
     } catch {
       valid = false;
     }

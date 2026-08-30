@@ -2,6 +2,7 @@ import { getDb } from "../db";
 import { newId, nowISO, toJSON, parseJSON } from "../utils";
 import { encrypt, decrypt } from "../crypto";
 import { logActivity, notify } from "../activity";
+import { appCallbackUrl, configuredCallbackUrl } from "../app-url";
 
 export type Provider = "gmail" | "calendar" | "drive" | "github";
 
@@ -45,7 +46,7 @@ export function providerMeta(): ProviderMeta[] {
       name: "Google Drive",
       description: "Index approved documents and associate them with projects, applications and clients.",
       category: "Documents",
-      scopes: ["https://www.googleapis.com/auth/drive.readonly"],
+      scopes: ["https://www.googleapis.com/auth/drive.metadata.readonly"],
       configured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
       docsUrl: "https://developers.google.com/drive/api",
     },
@@ -70,11 +71,11 @@ export function getProvider(key: Provider): ProviderMeta {
 export function buildAuthUrl(provider: Provider, state: string): string | null {
   const meta = getProvider(provider);
   if (!meta.configured) return null;
-  const redirect = process.env.GOOGLE_REDIRECT_URI || `${process.env.APP_URL || "http://localhost:3000"}/api/integrations/google/callback`;
+  const redirect = configuredCallbackUrl(process.env.GOOGLE_REDIRECT_URI, "/api/integrations/google/callback");
   if (provider === "github") {
     const url = new URL(GITHUB_AUTH);
     url.searchParams.set("client_id", process.env.GITHUB_CLIENT_ID!);
-    url.searchParams.set("redirect_uri", `${process.env.APP_URL || "http://localhost:3000"}/api/integrations/github/callback`);
+    url.searchParams.set("redirect_uri", appCallbackUrl("/api/integrations/github/callback"));
     url.searchParams.set("scope", meta.scopes.join(" "));
     url.searchParams.set("state", state);
     return url.toString();
@@ -84,14 +85,16 @@ export function buildAuthUrl(provider: Provider, state: string): string | null {
   url.searchParams.set("redirect_uri", redirect);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("access_type", "offline");
+  url.searchParams.set("include_granted_scopes", "true");
   url.searchParams.set("prompt", "consent");
+  url.searchParams.set("login_hint", "royokola3@gmail.com");
   url.searchParams.set("scope", meta.scopes.join(" "));
   url.searchParams.set("state", `${provider}:${state}`);
   return url.toString();
 }
 
 async function exchangeGoogle(code: string, provider: Provider): Promise<{ access: string; refresh?: string; expiresAt?: string }> {
-  const redirect = process.env.GOOGLE_REDIRECT_URI || `${process.env.APP_URL || "http://localhost:3000"}/api/integrations/google/callback`;
+  const redirect = configuredCallbackUrl(process.env.GOOGLE_REDIRECT_URI, "/api/integrations/google/callback");
   const res = await fetch(GOOGLE_TOKEN, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -120,7 +123,7 @@ async function exchangeGithub(code: string): Promise<{ access: string; refresh?:
       client_id: process.env.GITHUB_CLIENT_ID!,
       client_secret: process.env.GITHUB_CLIENT_SECRET!,
       code,
-      redirect_uri: `${process.env.APP_URL || "http://localhost:3000"}/api/integrations/github/callback`,
+      redirect_uri: appCallbackUrl("/api/integrations/github/callback"),
     }),
   });
   const data = await res.json();
@@ -192,6 +195,44 @@ async function latestToken(integrationId: string, kind: string): Promise<string 
   }
 }
 
+async function googleAccessToken(integrationId: string): Promise<string | null> {
+  const db = await getDb();
+  const accessRow = await db.get(
+    `SELECT encrypted_token, expires_at FROM integration_tokens WHERE integration_id = ? AND kind = 'access' ORDER BY created_at DESC LIMIT 1`,
+    [integrationId]
+  );
+  if (!accessRow) return null;
+  if (!accessRow.expires_at || new Date(accessRow.expires_at).getTime() > Date.now() + 60_000) {
+    try { return decrypt(accessRow.encrypted_token); } catch { return null; }
+  }
+
+  const refresh = await latestToken(integrationId, "refresh");
+  if (!refresh) return null;
+  const res = await fetch(GOOGLE_TOKEN, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID!,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      refresh_token: refresh,
+      grant_type: "refresh_token",
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.access_token) return null;
+  const expiresAt = data.expires_in
+    ? new Date(Date.now() + data.expires_in * 1000).toISOString()
+    : null;
+  await db.insert("integration_tokens", {
+    id: newId("itk"), integration_id: integrationId, encrypted_token: encrypt(data.access_token),
+    kind: "access", expires_at: expiresAt, created_at: nowISO(),
+  });
+  await db.update("integrations", integrationId, {
+    token_meta_json: toJSON({ hasRefresh: true, expiresAt }), updated_at: nowISO(),
+  });
+  return data.access_token;
+}
+
 export async function getAccessToken(provider: Provider, userId: string): Promise<string | null> {
   const db = await getDb();
   const integration = await db.get(`SELECT * FROM integrations WHERE user_id = ? AND provider = ?`, [userId, provider]);
@@ -204,7 +245,7 @@ export async function getAccessToken(provider: Provider, userId: string): Promis
 // ---------------------------------------------------------------------------
 
 async function syncGmail(userId: string, integrationId: string): Promise<{ imported: number; errors: string[] }> {
-  const token = await latestToken(integrationId, "access");
+  const token = await googleAccessToken(integrationId);
   if (!token) return { imported: 0, errors: ["No access token"] };
   const db = await getDb();
   const listRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15`, {
@@ -281,18 +322,87 @@ async function syncGithub(userId: string, integrationId: string): Promise<{ impo
   return { imported, errors: [] };
 }
 
-async function syncGoogleGeneric(userId: string, integrationId: string, endpoint: string, kind: string): Promise<{ imported: number; errors: string[] }> {
-  const token = await latestToken(integrationId, "access");
-  if (!token) return { imported: 0, errors: ["No access token"] };
-  const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) return { imported: 0, errors: [`${kind} failed: ${res.status}`] };
+async function syncCalendar(userId: string, integrationId: string): Promise<{ imported: number; errors: string[] }> {
+  const token = await googleAccessToken(integrationId);
+  if (!token) return { imported: 0, errors: ["No valid Calendar access token"] };
+  const params = new URLSearchParams({
+    maxResults: "100", singleEvents: "true", orderBy: "startTime",
+    timeMin: new Date(Date.now() - 7 * 86400_000).toISOString(),
+  });
+  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return { imported: 0, errors: [`Calendar sync failed: ${res.status}`] };
   const data = await res.json();
-  return { imported: Array.isArray(data.items || data) ? (data.items || data).length : 1, errors: [] };
+  const db = await getDb();
+  let imported = 0;
+  for (const event of data.items || []) {
+    if (event.status === "cancelled") continue;
+    const id = `gcal:${integrationId}:${event.id}`;
+    const values = {
+      user_id: userId,
+      integration_id: integrationId,
+      title: event.summary || "Untitled event",
+      starts_at: event.start?.dateTime || event.start?.date || null,
+      ends_at: event.end?.dateTime || event.end?.date || null,
+      location: event.location || null,
+      attendees_json: toJSON((event.attendees || []).map((attendee: any) => ({
+        email: attendee.email, name: attendee.displayName || null, status: attendee.responseStatus || null,
+      }))),
+      notes: event.description || null,
+    };
+    const existing = await db.get(`SELECT id FROM calendar_events WHERE id = ?`, [id]);
+    if (existing) await db.update("calendar_events", id, values);
+    else await db.insert("calendar_events", { id, ...values, related_project: null, related_org: null, brief_json: "{}", created_at: nowISO() });
+    imported++;
+  }
+  return { imported, errors: [] };
+}
+
+async function syncDrive(userId: string, integrationId: string): Promise<{ imported: number; errors: string[] }> {
+  const token = await googleAccessToken(integrationId);
+  if (!token) return { imported: 0, errors: ["No valid Drive access token"] };
+  const params = new URLSearchParams({
+    pageSize: "100",
+    q: "trashed = false",
+    fields: "files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink)",
+    orderBy: "modifiedTime desc",
+  });
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return { imported: 0, errors: [`Drive sync failed: ${res.status}`] };
+  const data = await res.json();
+  const db = await getDb();
+  let imported = 0;
+  for (const file of data.files || []) {
+    const viewUrl = file.webViewLink || `https://drive.google.com/open?id=${encodeURIComponent(file.id)}`;
+    const existing = await db.get(
+      `SELECT id FROM documents WHERE user_id = ? AND storage_provider = 'google_drive' AND file_path = ?`,
+      [userId, viewUrl]
+    );
+    const values = {
+      name: file.name || "Untitled Drive file",
+      category: "Google Drive",
+      date: file.modifiedTime || file.createdTime || null,
+      file_path: viewUrl,
+      storage_provider: "google_drive",
+      size_bytes: file.size ? Number(file.size) : null,
+      mime: file.mimeType || null,
+    };
+    if (existing) await db.update("documents", existing.id, values);
+    else await db.insert("documents", {
+      id: newId("doc"), user_id: userId, ...values, issuer: "Google Drive", expiry: null,
+      sensitivity: "normal", hash: null, version: 1, applications_json: "[]", created_at: nowISO(),
+    });
+    imported++;
+  }
+  return { imported, errors: [] };
 }
 
 export async function syncIntegration(integrationId: string, userId: string): Promise<any> {
   const db = await getDb();
-  const integration = await db.get(`SELECT * FROM integrations WHERE id = ?`, [integrationId]);
+  const integration = await db.get(`SELECT * FROM integrations WHERE id = ? AND user_id = ?`, [integrationId, userId]);
   if (!integration) throw new Error("Integration not found");
   const runId = newId("syn");
   await db.insert("sync_runs", {
@@ -310,8 +420,8 @@ export async function syncIntegration(integrationId: string, userId: string): Pr
   try {
     if (integration.provider === "gmail") result = await syncGmail(userId, integrationId);
     else if (integration.provider === "github") result = await syncGithub(userId, integrationId);
-    else if (integration.provider === "calendar") result = await syncGoogleGeneric(userId, integrationId, "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=20", "calendar");
-    else if (integration.provider === "drive") result = await syncGoogleGeneric(userId, integrationId, "https://www.googleapis.com/drive/v3/files?pageSize=20&fields=files(id,name,mimeType,modifiedTime)", "drive");
+    else if (integration.provider === "calendar") result = await syncCalendar(userId, integrationId);
+    else if (integration.provider === "drive") result = await syncDrive(userId, integrationId);
     await db.update("integrations", integrationId, { status: "connected", last_synced: nowISO(), updated_at: nowISO() });
     await db.update("sync_runs", runId, { status: "success", finished_at: nowISO(), result_json: toJSON(result), errors_json: toJSON(errors) });
     if (result.imported) await notify(userId, "integration", `${getProvider(integration.provider).name} synced`, `Imported ${result.imported} item(s).`, "integration", integrationId);

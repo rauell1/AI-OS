@@ -6,7 +6,7 @@ import { getDailyBrief, getMetrics } from "@/lib/brief";
 import { formatDate, relativeTime } from "@/lib/utils";
 import { PageHeader, StatCard, ScoreBar, SectionTitle } from "@/components/widgets";
 import { Badge, Card, CardContent } from "@/components/ui";
-import { TaskFormDialog } from "@/components/modals";
+import { TaskFormDialog } from "@/components/task-form-dialog";
 import { RunBriefButton } from "@/components/quick-actions";
 
 const statusTone: Record<string, any> = {

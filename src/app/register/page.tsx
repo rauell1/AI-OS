@@ -1,4 +1,4 @@
-import { AuthScreen } from "@/components/auth-screen";
+import { permanentRedirect } from "next/navigation";
 export default function RegisterPage() {
-  return <AuthScreen mode="register" />;
+  permanentRedirect("/login");
 }

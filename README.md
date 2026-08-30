@@ -19,7 +19,8 @@ With no `DATABASE_URL` set, the app uses an embedded SQLite file at
 `./data/rauell.db` — no database server required. The schema creates itself on
 first connection, so there is no migration step to run.
 
-Open `/register` and create the first account. It is assigned the `owner` role.
+Public registration is disabled. Provision the owner account only through the
+controlled seed workflow, using `SEED_EMAIL=royokola3@gmail.com`.
 
 ## Environment
 
@@ -31,6 +32,7 @@ cp .env.example .env.local
 
 | Variable | Required | Purpose |
 | :--- | :--- | :--- |
+| `APP_URL` / `NEXT_PUBLIC_APP_URL` | production | Canonical application URL. Production is `https://ai-os.rauell.systems`. |
 | `DATABASE_URL` | production | Pooled PostgreSQL connection string. Unset ⇒ embedded SQLite. |
 | `AUTH_SECRET` | production | Signs session JWTs. **Unset falls back to a value committed in this repo**, which anyone can use to forge an owner session. |
 | `CRON_SECRET` | for automations | `/api/automations/run` authenticates with this and refuses to run without it. |
@@ -94,8 +96,11 @@ an empty result. Feature code must never call `runAsSystem`.
 SQLite has no equivalent; local development relies on the application filters
 alone. See `src/lib/rls.ts`.
 
-**Sessions** are JWTs in an httpOnly cookie, verified in middleware. Set
-`AUTH_SECRET`.
+**Sessions** are application-managed JWTs in a secure, host-only, httpOnly
+cookie, verified in middleware. User credentials are stored in the app's
+`users` table with bcrypt password hashes. Set `AUTH_SECRET` to the same stable
+secret on every production deployment. This app currently uses Neon as
+PostgreSQL storage only; it does **not** use the separate Neon Auth service.
 
 **Approvals.** Outbound and destructive actions — sending, submitting,
 publishing, deleting — route through the Approval Center rather than executing
@@ -118,8 +123,8 @@ Scripts load `.env.local` then `.env` themselves; real environment variables win
 
 ## Seeding
 
-Optional. Registering through `/register` and filling in the profile in-app
-works fine — the app handles an empty profile.
+The seed workflow is the only supported way to provision the owner account;
+the deployed application does not expose account registration.
 
 To load the master profile instead:
 
@@ -148,6 +153,13 @@ directory.
 Set `DATABASE_URL`, `AUTH_SECRET` and `CRON_SECRET` in the project's environment
 variables, scoped to **Production**, then redeploy — environment changes only
 apply to new deployments.
+
+Set both `APP_URL` and `NEXT_PUBLIC_APP_URL` to
+`https://ai-os.rauell.systems`, and set `GOOGLE_REDIRECT_URI` to
+`https://ai-os.rauell.systems/api/integrations/google/callback`. Register that
+same callback in Google Cloud, plus
+`https://ai-os.rauell.systems/api/integrations/github/callback` in the GitHub
+OAuth app when GitHub integration is enabled.
 
 Without a Postgres `DATABASE_URL`, the serverless filesystem is read-only and
 storage falls back to the system temp directory: the app runs, but **accounts

@@ -34,7 +34,7 @@ export function ProfileSettings({ headline, summary, location, nationality, link
   );
 }
 
-export function AISettings({ provider }: { provider: string }) {
+export function AISettings({ provider, providers }: { provider: string; providers: { provider: string; configured: boolean; model: string }[] }) {
   const [pending, start] = useTransition();
   const [val, setVal] = React.useState(provider);
   return (
@@ -43,13 +43,16 @@ export function AISettings({ provider }: { provider: string }) {
         <NativeSelect value={val} disabled={pending}
           onChange={(e) => { setVal(e.target.value); start(() => { updatePreference("aiProvider", e.target.value); }); }}
           className="w-48 text-sm">
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic</option>
-          <option value="gemini">Google Gemini</option>
+          {providers.map((item) => (
+            <option key={item.provider} value={item.provider} disabled={!item.configured}>
+              {item.provider === "gemini" ? "Google Gemini" : item.provider === "nvidia" ? "NVIDIA NIM" : item.provider[0].toUpperCase() + item.provider.slice(1)}
+              {item.configured ? "" : " (not configured)"}
+            </option>
+          ))}
         </NativeSelect>
-        <span className="text-xs text-muted">Default model role routing (set API keys in .env.local)</span>
+        <span className="text-xs text-muted">{providers.find((item) => item.provider === val)?.model || "No model configured"}</span>
       </div>
-      <p className="text-[11px] text-faint">The system works fully without any AI key using deterministic, rule-based logic. Add keys to enable semantic assistance.</p>
+      <p className="text-[11px] text-faint">Only configured providers can be selected. The chosen provider is now used by chat, RAG and automations.</p>
     </div>
   );
 }

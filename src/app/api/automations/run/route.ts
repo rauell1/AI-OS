@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 //
 // Vercel Cron calls it with GET + `Authorization: Bearer $CRON_SECRET`.
 // Manual/self-hosted callers can use either that or the x-cron-secret header:
-//   curl -X POST https://os.rauell.systems/api/automations/run -H "x-cron-secret: $CRON_SECRET"
+//   curl -X POST https://ai-os.rauell.systems/api/automations/run -H "x-cron-secret: $CRON_SECRET"
 function authorized(req: NextRequest): boolean {
   const expected = process.env.CRON_SECRET;
   // Without a configured secret the endpoint stays closed rather than open.

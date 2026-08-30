@@ -430,6 +430,43 @@ CREATE TABLE IF NOT EXISTS knowledge_items (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS chat_threads (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT 'AI Assistant',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id TEXT PRIMARY KEY,
+  thread_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  used_ai INTEGER,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS chat_attachments (
+  id TEXT PRIMARY KEY,
+  message_id TEXT NOT NULL,
+  thread_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL,
+  storage_provider TEXT NOT NULL,
+  storage_path TEXT NOT NULL,
+  extracted_text TEXT,
+  content_hash TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_threads_user_updated ON chat_threads(user_id, updated_at);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_created ON chat_messages(thread_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_chat_attachments_message ON chat_attachments(message_id);
+
 CREATE TABLE IF NOT EXISTS ai_runs (
   id TEXT PRIMARY KEY,
   user_id TEXT,
@@ -620,4 +657,4 @@ CREATE INDEX IF NOT EXISTS idx_links_user ON links(user_id);
 CREATE INDEX IF NOT EXISTS idx_automation_user ON automation_rules(user_id);
 `;
 
-export const MIGRATION_NAME = "0001_init_rauell_os";
+export const MIGRATION_NAME = "0002_chat_memory_and_domain";

@@ -169,12 +169,12 @@ export function AppShell({ user, unread, approvals, children }: { user: any; unr
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <div className="px-2 py-1.5 text-xs text-muted">{user.email}</div>
+                <div className="max-w-56 truncate px-2 py-1.5 text-xs text-muted" title={user.email}>{user.email}</div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild><Link href="/settings">Settings</Link></DropdownMenuItem>
                 <DropdownMenuItem asChild><Link href="/profile">Profile</Link></DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => logout()}><LogOut size={14} className="mr-2" /> Sign out</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => logout()} className="text-danger focus:text-danger"><LogOut size={14} /> Sign out</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

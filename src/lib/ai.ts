@@ -1,5 +1,6 @@
 import { getDb } from "./db";
 import { newId, nowISO } from "./utils";
+import { parseJSON } from "./utils";
 
 export type AIProviderName = "openai" | "anthropic" | "gemini" | "nvidia";
 
@@ -54,10 +55,29 @@ function providerKey(p: AIProviderName): string | undefined {
 }
 
 function defaultModel(p: AIProviderName): string {
-  if (p === "nvidia") return process.env.NVIDIA_MODEL || "meta/llama-3.2-90b-vision-instruct";
-  if (p === "openai") return process.env.OPENAI_MODEL || "gpt-4o-mini";
-  if (p === "anthropic") return process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
-  return process.env.GEMINI_MODEL || "gemini-1.5-flash";
+  if (p === "nvidia") return process.env.NVIDIA_MODEL || "meta/llama-3.3-70b-instruct";
+  if (p === "openai") return process.env.OPENAI_MODEL || "gpt-5.6-luna";
+  if (p === "anthropic") return process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
+  return process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
+}
+
+export function aiProviderStatus() {
+  const names: AIProviderName[] = ["openai", "anthropic", "gemini", "nvidia"];
+  return names.map((provider) => ({
+    provider,
+    configured: Boolean(providerKey(provider)),
+    model: defaultModel(provider),
+  }));
+}
+
+async function storedProvider(userId?: string): Promise<AIProviderName | undefined> {
+  if (!userId) return undefined;
+  const db = await getDb();
+  const row = await db.get(`SELECT prefs_json FROM user_preferences WHERE user_id = ?`, [userId]);
+  const value = parseJSON<{ aiProvider?: string }>(row?.prefs_json, {}).aiProvider;
+  return ["openai", "anthropic", "gemini", "nvidia"].includes(value || "")
+    ? value as AIProviderName
+    : undefined;
 }
 
 async function postJson(url: string, headers: Record<string, string>, body: any, timeoutMs = 30000) {
@@ -217,7 +237,7 @@ async function logRun(opts: CompletionOpts, result: CompletionResult | null, err
  * can fall back to deterministic, rule-based logic.
  */
 export async function complete(opts: CompletionOpts): Promise<CompletionResult | null> {
-  const provider = resolveProvider(opts.provider);
+  const provider = resolveProvider(opts.provider || await storedProvider(opts.userId));
   if (!provider) {
     await logRun(opts, null, "no_provider");
     return null;

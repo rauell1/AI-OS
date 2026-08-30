@@ -15,6 +15,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const db = await getDb();
   const doc = await db.get(`SELECT * FROM documents WHERE id = ? AND user_id = ?`, [params.id, user.id]);
   if (!doc || !doc.file_path) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (doc.storage_provider === "google_drive" && /^https:\/\//.test(doc.file_path)) {
+    return NextResponse.redirect(doc.file_path);
+  }
   const filePath = path.join(DOC_DIR, doc.file_path);
   if (!fs.existsSync(filePath)) return NextResponse.json({ error: "File missing" }, { status: 404 });
   const buf = fs.readFileSync(filePath);

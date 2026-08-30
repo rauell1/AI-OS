@@ -2,14 +2,14 @@
 
 import * as React from "react";
 import { useFormState } from "react-dom";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Bot, Loader2 } from "lucide-react";
 import { Button, Input, Label } from "@/components/ui";
-import { login, register } from "@/app/actions/auth";
+import { login } from "@/app/actions/auth";
+import { OWNER_EMAIL } from "@/lib/auth-policy";
 
-export function AuthScreen({ mode }: { mode: "login" | "register" }) {
-  const [state, action] = useFormState(mode === "login" ? login : register, {});
+export function AuthScreen() {
+  const [state, action] = useFormState(login, {});
   const [pending, setPending] = React.useState(false);
   const params = useSearchParams();
   const next = params.get("next") || "/";
@@ -32,39 +32,35 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
           </div>
         </div>
         <div className="card p-6">
-          <h1 className="text-lg font-semibold">{mode === "login" ? "Welcome back, Roy" : "Create your account"}</h1>
+          <h1 className="text-lg font-semibold">Welcome back, Roy</h1>
           <p className="mb-4 mt-1 text-sm text-muted">
-            {mode === "login" ? "Sign in to your command center." : "Set up the first owner account."}
+            Sign in to your private command center. New registrations are disabled.
           </p>
           <form onSubmit={submit} className="space-y-3">
             {state.error && <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{state.error}</div>}
-            {mode === "register" && (
-              <div>
-                <Label htmlFor="name">Full name</Label>
-                <Input id="name" name="name" placeholder="Roy Okola Otieno" required />
-              </div>
-            )}
             <div>
               <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" placeholder="roy@rauell.systems" required defaultValue="roy@rauell.systems" />
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                required
+                defaultValue={OWNER_EMAIL}
+                readOnly
+                autoComplete="email"
+              />
             </div>
             <div>
               <Label htmlFor="password">Password</Label>
-              <Input id="password" name="password" type="password" required autoComplete={mode === "login" ? "current-password" : "new-password"} />
+              <Input id="password" name="password" type="password" required autoComplete="current-password" />
             </div>
             <input type="hidden" name="next" value={next} />
             <Button type="submit" variant="primary" className="w-full" disabled={pending}>
               {pending && <Loader2 size={15} className="animate-spin" />}
-              {mode === "login" ? "Sign in" : "Create account"}
+              Sign in
             </Button>
           </form>
-          <p className="mt-4 text-center text-sm text-muted">
-            {mode === "login" ? (
-              <>No account? <Link href="/register" className="text-accent">Create one</Link></>
-            ) : (
-              <>Already have an account? <Link href="/login" className="text-accent">Sign in</Link></>
-            )}
-          </p>
+          <p className="mt-4 text-center text-xs text-muted">Owner access only.</p>
         </div>
       </div>
     </div>

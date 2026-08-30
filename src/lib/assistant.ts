@@ -20,20 +20,22 @@ export async function buildAssistantContext(userId: string): Promise<AssistantCo
     getMasterProfile(userId),
   ]);
   const db = await getDb();
-  const opps = await db.query(
-    `SELECT o.id, o.title, o.type, o.deadline, s.overall, s.recommendation
-     FROM opportunities o LEFT JOIN opportunity_scores s ON s.opportunity_id = o.id
-     WHERE o.user_id = ? ORDER BY s.overall DESC NULLS LAST LIMIT 10`,
-    [userId]
-  );
-  const tasks = await db.query(
-    `SELECT title, due_date, priority FROM tasks WHERE user_id = ? AND status NOT IN ('done','cancelled') ORDER BY due_date ASC LIMIT 10`,
-    [userId]
-  );
-  const apps = await db.query(
-    `SELECT title, status, deadline FROM applications WHERE user_id = ? ORDER BY deadline ASC LIMIT 10`,
-    [userId]
-  );
+  const [opps, tasks, apps] = await Promise.all([
+    db.query(
+      `SELECT o.id, o.title, o.type, o.deadline, s.overall, s.recommendation
+       FROM opportunities o LEFT JOIN opportunity_scores s ON s.opportunity_id = o.id
+       WHERE o.user_id = ? ORDER BY s.overall DESC NULLS LAST LIMIT 10`,
+      [userId]
+    ),
+    db.query(
+      `SELECT title, due_date, priority FROM tasks WHERE user_id = ? AND status NOT IN ('done','cancelled') ORDER BY due_date ASC LIMIT 10`,
+      [userId]
+    ),
+    db.query(
+      `SELECT title, status, deadline FROM applications WHERE user_id = ? ORDER BY deadline ASC LIMIT 10`,
+      [userId]
+    ),
+  ]);
   return {
     headline: profile.headline,
     metrics: Object.fromEntries(metrics.map((m) => [m.label, m.value])),

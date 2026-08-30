@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     "organizations", "people", "links", "opportunities", "opportunity_scores",
     "applications", "application_requirements", "application_questions", "application_versions",
     "tasks", "emails", "documents", "references_", "leads", "notes", "goals",
+    "chat_threads", "chat_messages", "chat_attachments", "knowledge_items",
     "automation_rules", "notifications", "approvals", "activity_events", "decisions",
     "integrations", "user_preferences",
   ];

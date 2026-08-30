@@ -7,6 +7,7 @@ import { Badge, Card, CardContent, CardHeader, CardTitle, Button, Input, Label, 
 import { ProfileSettings, AISettings } from "@/components/settings-client";
 import { getIntegrationStatus } from "@/app/actions/integrations";
 import { createGoalForm } from "@/app/actions/automations";
+import { aiProviderStatus } from "@/lib/ai";
 
 export default async function SettingsPage() {
   const user = await requireUser();
@@ -16,6 +17,11 @@ export default async function SettingsPage() {
     getIntegrationStatus(),
   ]);
   const prefs = parseJSON<{ aiProvider?: string }>(prefsRow?.prefs_json, {});
+  const providers = aiProviderStatus();
+  const requestedProvider = prefs.aiProvider || process.env.AI_DEFAULT_PROVIDER || "openai";
+  const effectiveProvider = providers.find((item) => item.provider === requestedProvider && item.configured)?.provider
+    || providers.find((item) => item.configured)?.provider
+    || requestedProvider;
   const goals = mp.goals;
 
   return (
@@ -30,7 +36,7 @@ export default async function SettingsPage() {
 
         <Card>
           <CardHeader><CardTitle>AI models</CardTitle></CardHeader>
-          <CardContent><AISettings provider={prefs.aiProvider || process.env.AI_DEFAULT_PROVIDER || "openai"} /></CardContent>
+          <CardContent><AISettings provider={effectiveProvider} providers={providers} /></CardContent>
         </Card>
 
         <Card>
@@ -45,6 +51,7 @@ export default async function SettingsPage() {
                 <Badge tone={i.status === "connected" ? "success" : i.configured ? "warning" : "neutral"}>{i.status.replace(/_/g, " ")}</Badge>
               </div>
             ))}
+            <a href="/integrations" className="inline-block pt-2"><Button size="sm" variant="primary">Connect and sync services</Button></a>
             <a href="/settings/privacy" className="inline-block mt-3 mb-2"><Button size="sm" variant="outline">Manage Privacy & Access</Button></a>
             <p className="text-[11px] text-faint">Gmail/calendar read-only by default. Drive uses selected folders. GitHub is read-only. AI processing of documents requires explicit approval.</p>
           </CardContent>

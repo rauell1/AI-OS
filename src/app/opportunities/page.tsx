@@ -4,7 +4,7 @@ import { getDb } from "@/lib/db";
 import { parseJSON } from "@/lib/utils";
 import { PageHeader, ScoreBar } from "@/components/widgets";
 import { Badge, Card, CardContent } from "@/components/ui";
-import { OpportunityFormDialog } from "@/components/modals";
+import { OpportunityFormDialog } from "@/components/opportunity-form-dialog";
 import { OpportunityRow } from "@/components/opportunity-controls";
 
 const TYPES = ["all", "job", "scholarship", "programme", "fellowship", "grant"];
