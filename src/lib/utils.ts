@@ -17,6 +17,17 @@ export function nowISO(): string {
   return new Date().toISOString();
 }
 
+// Timestamp columns are TEXT holding full ISO 8601 strings, so date cutoffs are
+// computed here and bound as parameters rather than expressed in SQL. SQLite's
+// datetime() does not exist in Postgres, and its output format
+// ("2026-08-30 13:00:00") does not match the stored format
+// ("2026-08-30T13:00:00.000Z") - the "T" sorts after the space, so a same-day
+// row compared against datetime() lands on the wrong side of the boundary.
+// Comparing ISO against ISO keeps both backends correct and identical.
+export function isoDaysFromNow(days = 0): string {
+  return new Date(Date.now() + days * 86_400_000).toISOString();
+}
+
 export function parseJSON<T = any>(value: string | null | undefined, fallback: T): T {
   if (value == null) return fallback;
   try {

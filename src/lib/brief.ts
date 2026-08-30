@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import { daysUntil, isOverdue, nowISO, parseJSON } from "./utils";
+import { daysUntil, isOverdue, isoDaysFromNow, nowISO, parseJSON } from "./utils";
 
 export interface Metric {
   label: string;
@@ -9,16 +9,19 @@ export interface Metric {
 
 export async function getMetrics(userId: string): Promise<Metric[]> {
   const db = await getDb();
-  const q = async (sql: string) => (await db.get<{ c: number }>(sql, [userId]))?.c || 0;
+  const q = async (sql: string, params: any[] = []) =>
+    (await db.get<{ c: number }>(sql, [userId, ...params]))?.c || 0;
+  const now = nowISO();
+  const in7Days = isoDaysFromNow(7);
   const [activeProjects, tasksDue, overdue, appsActive, appsSubmitted, opps, leads, followups, unread] = await Promise.all([
     q(`SELECT COUNT(*) c FROM projects WHERE user_id = ? AND status = 'active'`),
-    q(`SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND status NOT IN ('done','cancelled') AND due_date IS NOT NULL AND due_date <= datetime('now','+7 days')`),
-    q(`SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND status NOT IN ('done','cancelled') AND due_date IS NOT NULL AND due_date < datetime('now')`),
+    q(`SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND status NOT IN ('done','cancelled') AND due_date IS NOT NULL AND due_date <= ?`, [in7Days]),
+    q(`SELECT COUNT(*) c FROM tasks WHERE user_id = ? AND status NOT IN ('done','cancelled') AND due_date IS NOT NULL AND due_date < ?`, [now]),
     q(`SELECT COUNT(*) c FROM applications WHERE user_id = ? AND status NOT IN ('submitted','offer','rejected','withdrawn','archived')`),
     q(`SELECT COUNT(*) c FROM applications WHERE user_id = ? AND status = 'submitted'`),
     q(`SELECT COUNT(*) c FROM opportunities WHERE user_id = ?`),
     q(`SELECT COUNT(*) c FROM leads WHERE user_id = ? AND status NOT IN ('closed','lost')`),
-    q(`SELECT COUNT(*) c FROM followups WHERE user_id = ? AND status = 'pending' AND due_date <= datetime('now','+7 days')`),
+    q(`SELECT COUNT(*) c FROM followups WHERE user_id = ? AND status = 'pending' AND due_date <= ?`, [in7Days]),
     q(`SELECT COUNT(*) c FROM notifications WHERE user_id = ? AND read = 0`),
   ]);
   return [
@@ -47,18 +50,18 @@ export async function getUpcomingDeadlines(userId: string, days = 30): Promise<D
   const db = await getDb();
   const items: DeadlineItem[] = [];
   const apps = await db.query(
-    `SELECT id, title, deadline, status FROM applications WHERE user_id = ? AND deadline IS NOT NULL AND deadline <= datetime('now', ?) ORDER BY deadline ASC`,
-    [userId, `+${days} days`]
+    `SELECT id, title, deadline, status FROM applications WHERE user_id = ? AND deadline IS NOT NULL AND deadline <= ? ORDER BY deadline ASC`,
+    [userId, isoDaysFromNow(days)]
   );
   for (const a of apps) items.push({ id: a.id, title: a.title, type: "application", due: a.deadline, days: daysUntil(a.deadline), meta: a.status });
   const opps = await db.query(
-    `SELECT id, title, deadline, type FROM opportunities WHERE user_id = ? AND deadline IS NOT NULL AND deadline <= datetime('now', ?) ORDER BY deadline ASC`,
-    [userId, `+${days} days`]
+    `SELECT id, title, deadline, type FROM opportunities WHERE user_id = ? AND deadline IS NOT NULL AND deadline <= ? ORDER BY deadline ASC`,
+    [userId, isoDaysFromNow(days)]
   );
   for (const o of opps) items.push({ id: o.id, title: o.title, type: o.type, due: o.deadline, days: daysUntil(o.deadline) });
   const tasks = await db.query(
-    `SELECT id, title, due_date, priority FROM tasks WHERE user_id = ? AND status NOT IN ('done','cancelled') AND due_date IS NOT NULL AND due_date <= datetime('now', ?) ORDER BY due_date ASC`,
-    [userId, `+${days} days`]
+    `SELECT id, title, due_date, priority FROM tasks WHERE user_id = ? AND status NOT IN ('done','cancelled') AND due_date IS NOT NULL AND due_date <= ? ORDER BY due_date ASC`,
+    [userId, isoDaysFromNow(days)]
   );
   for (const t of tasks) items.push({ id: t.id, title: t.title, type: "task", due: t.due_date, days: daysUntil(t.due_date), meta: `P${t.priority}` });
   items.sort((a, b) => (a.days ?? 999) - (b.days ?? 999));
@@ -93,16 +96,16 @@ export async function getDailyBrief(userId: string): Promise<DailyBrief> {
       [userId]
     ),
     db.query(
-      `SELECT id, title, starts_at, location FROM calendar_events WHERE user_id = ? AND starts_at >= datetime('now') ORDER BY starts_at ASC LIMIT 5`,
-      [userId]
+      `SELECT id, title, starts_at, location FROM calendar_events WHERE user_id = ? AND starts_at >= ? ORDER BY starts_at ASC LIMIT 5`,
+      [userId, nowISO()]
     ),
     db.query(
       `SELECT id, name, status, next_actions_json, updated_at FROM projects WHERE user_id = ? AND status = 'active' ORDER BY updated_at ASC LIMIT 5`,
       [userId]
     ),
     db.query(
-      `SELECT id, note, due_date, entity_type FROM followups WHERE user_id = ? AND status = 'pending' AND due_date <= datetime('now','+7 days') ORDER BY due_date ASC LIMIT 5`,
-      [userId]
+      `SELECT id, note, due_date, entity_type FROM followups WHERE user_id = ? AND status = 'pending' AND due_date <= ? ORDER BY due_date ASC LIMIT 5`,
+      [userId, isoDaysFromNow(7)]
     ),
     db.query(
       `SELECT o.id, o.title, o.type, s.overall, s.recommendation FROM opportunities o LEFT JOIN opportunity_scores s ON s.opportunity_id = o.id WHERE o.user_id = ? AND o.status = 'discovered' ORDER BY s.overall DESC LIMIT 5`,
