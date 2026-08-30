@@ -1,8 +1,8 @@
 import "./load-env";
-import { getDb } from "../src/lib/db";
+import { getDb, runAsSystem } from "../src/lib/db";
 import { SignJWT } from "jose";
 
-(async () => {
+runAsSystem(async () => {
   const db = await getDb();
   const u = await db.get(`SELECT id, email, name, role FROM users LIMIT 1`);
   if (!u) { console.error("No user"); process.exit(1); }
@@ -15,4 +15,4 @@ import { SignJWT } from "jose";
     .setExpirationTime("2h")
     .sign(secret);
   console.log("rauell_session=" + token);
-})();
+});

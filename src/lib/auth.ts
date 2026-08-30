@@ -1,37 +1,20 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT } from "jose";
 import bcrypt from "bcryptjs";
-import { getDb } from "./db";
+import { getDb, runAsSystem } from "./db";
 import { newId, nowISO } from "./utils";
+import {
+  SESSION_COOKIE as COOKIE,
+  SESSION_ISSUER as ISSUER,
+  sessionSecret as secret,
+  verifySession,
+  type SessionUser,
+} from "./session";
 
-const COOKIE = "rauell_session";
-const ISSUER = "rauell-os";
+export { verifySession };
+export type { SessionUser };
 
-let secretWarned = false;
-
-function secret(): Uint8Array {
-  const configured = process.env.AUTH_SECRET;
-  if (!configured && process.env.NODE_ENV === "production" && !secretWarned) {
-    secretWarned = true;
-    // The fallback below is committed to this repository, so anyone who can
-    // read it can mint a valid owner session cookie. Deployments must set
-    // AUTH_SECRET to a long random string.
-    console.error(
-      "[rauell-os] SECURITY: AUTH_SECRET is not set. Session cookies are being signed " +
-        "with the public development fallback, which allows anyone to forge an owner " +
-        "session. Set AUTH_SECRET to a long random value immediately."
-    );
-  }
-  return new TextEncoder().encode(configured || "dev-insecure-secret-change-me");
-}
-
-export interface SessionUser {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-}
 
 export function hashPassword(plain: string): string {
   return bcrypt.hashSync(plain, 10);
@@ -57,22 +40,6 @@ export async function createSession(user: SessionUser): Promise<string> {
   return token;
 }
 
-export async function verifySession(token: string | undefined): Promise<SessionUser | null> {
-  if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, secret(), { issuer: ISSUER });
-    if (!payload.sub) return null;
-    return {
-      id: payload.sub,
-      email: payload.email as string,
-      name: payload.name as string,
-      role: (payload.role as string) || "owner",
-    };
-  } catch {
-    return null;
-  }
-}
-
 export async function setSessionCookie(user: SessionUser) {
   const token = await createSession(user);
   const ttl = parseInt(process.env.SESSION_TTL || "2592000", 10);
@@ -91,6 +58,8 @@ export function clearSessionCookie() {
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const token = cookies().get(COOKIE)?.value;
+  // Scope for RLS is resolved inside the database layer from this same
+  // cookie, so nothing needs to be established here.
   return verifySession(token);
 }
 
@@ -103,22 +72,32 @@ export async function requireUser(): Promise<SessionUser> {
 // ---- Account creation / lookup --------------------------------------------
 
 export async function findUserByEmail(email: string) {
-  const db = await getDb();
-  return db.get(`SELECT * FROM users WHERE email = ?`, [email.toLowerCase()]);
+  // Runs before sign-in, so there is no user scope yet.
+  return runAsSystem(async () => {
+    const db = await getDb();
+    return db.get(`SELECT * FROM users WHERE email = ?`, [email.toLowerCase()]);
+  });
 }
 
 export async function findUserById(id: string) {
-  const db = await getDb();
-  return db.get(`SELECT * FROM users WHERE id = ?`, [id]);
+  return runAsSystem(async () => {
+    const db = await getDb();
+    return db.get(`SELECT * FROM users WHERE id = ?`, [id]);
+  });
 }
 
 export async function userCount(): Promise<number> {
-  const db = await getDb();
-  const row = await db.get(`SELECT COUNT(*) AS c FROM users`);
-  return (row?.c as number) || 0;
+  return runAsSystem(async () => {
+    const db = await getDb();
+    const row = await db.get(`SELECT COUNT(*) AS c FROM users`);
+    return (row?.c as number) || 0;
+  });
 }
 
 export async function createUser(email: string, name: string, password: string) {
+  // Registration creates the row that scoping would key on, so it must run as
+  // system. The context also covers the userCount() lookup below.
+  return runAsSystem(async () => {
   const db = await getDb();
   const count = await userCount();
   const id = newId("usr");
@@ -133,6 +112,7 @@ export async function createUser(email: string, name: string, password: string) 
     created_at: nowISO(),
   });
   return id;
+  });
 }
 
 // ---- Middleware helpers (edge-safe, no DB) --------------------------------

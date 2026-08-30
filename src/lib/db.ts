@@ -1,9 +1,73 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
 import { SCHEMA_SQL, MIGRATION_NAME } from "./schema";
+import { RLS_SQL } from "./rls";
+import { SESSION_COOKIE, verifySession } from "./session";
+
+// --- Request-scoped database context ---------------------------------------
+//
+// Row Level Security needs to know who is asking. The context is carried in
+// async local storage so it follows a request through server components and
+// actions without threading a user argument through every call site.
+
+export interface DbContext {
+  userId?: string;
+  system?: boolean;
+}
+
+const dbContext = new AsyncLocalStorage<DbContext>();
+
+export function currentDbContext(): DbContext | undefined {
+  return dbContext.getStore();
+}
+
+/** Run with the signed-in user's scope. RLS restricts rows to that user. */
+export function runAsUser<R>(userId: string, fn: () => R): R {
+  return dbContext.run({ userId }, fn);
+}
+
+/**
+ * Run without a user, for the few operations that legitimately need it:
+ * login lookup, registration, the cron owner lookup and schema bootstrap.
+ * Feature code must never use this - it bypasses row scoping entirely.
+ */
+export function runAsSystem<R>(fn: () => R): R {
+  return dbContext.run({ system: true }, fn);
+}
+
+/**
+ * Resolve the scope for a query.
+ *
+ * An explicit runAsUser/runAsSystem wrapper always wins. Otherwise the signed-in
+ * user is read from the session cookie at the moment of the query.
+ *
+ * Deriving it here rather than at each call site is deliberate: AsyncLocalStorage
+ * set via enterWith() inside an auth helper does NOT survive the await back into
+ * the calling page, so a context established there would be silently lost and
+ * every page would fail closed. Resolving at the point of use also means a new
+ * call site cannot forget to establish scope - which is the very mistake RLS
+ * exists to contain.
+ */
+async function resolveContext(): Promise<DbContext | undefined> {
+  const explicit = dbContext.getStore();
+  if (explicit) return explicit;
+  try {
+    // Imported lazily: this module also runs in plain scripts, where
+    // next/headers does not exist and cookies() has no request to read.
+    const { cookies } = await import("next/headers");
+    const token = cookies().get(SESSION_COOKIE)?.value;
+    const user = await verifySession(token);
+    if (user) return { userId: user.id };
+  } catch {
+    // Outside a request scope (scripts, bootstrap). Callers there must wrap
+    // explicitly, and the guard below reports it if they have not.
+  }
+  return undefined;
+}
 
 // ---------------------------------------------------------------------------
 // Unified database layer.
@@ -194,18 +258,54 @@ class PgDatabase implements Database {
     this.pool = pool;
   }
 
+  // Row Level Security policies read app.user_id and app.system, so every
+  // statement runs inside a transaction that sets them. set_config(..., true)
+  // is transaction-local, so nothing leaks onto the next borrower of a pooled
+  // connection. The cost is a BEGIN/set/COMMIT round trip per statement.
+  private async withContext<R>(fn: (client: any) => Promise<R>): Promise<R> {
+    const ctx = await resolveContext();
+    if (!ctx) {
+      // Fail closed and loudly. Without a context the policies would match
+      // nothing and pages would render empty, which is far harder to diagnose.
+      throw new Error(
+        "[rauell-os] Database access without a user context. Wrap the call in " +
+          "runAsUser(userId, ...) or runAsSystem(...) - see src/lib/rls.ts."
+      );
+    }
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('app.user_id', $1, true), set_config('app.system', $2, true)", [
+        ctx.userId ?? "",
+        ctx.system ? "on" : "off",
+      ]);
+      const result = await fn(client);
+      await client.query("COMMIT");
+      return result;
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // The connection is already broken; the original error is what matters.
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   async query<T = Record<string, any>>(sql: string, params?: any[]): Promise<T[]> {
-    const res = await this.pool.query(toPg(sql), params || []);
+    const res: any = await this.withContext((c) => c.query(toPg(sql), params || []));
     return res.rows as T[];
   }
 
   async get<T = Record<string, any>>(sql: string, params?: any[]): Promise<T | undefined> {
-    const res = await this.pool.query(toPg(sql), params || []);
+    const res: any = await this.withContext((c) => c.query(toPg(sql), params || []));
     return (res.rows[0] as T) || undefined;
   }
 
   async run(sql: string, params?: any[]): Promise<{ changes: number }> {
-    const res = await this.pool.query(toPg(sql), params || []);
+    const res: any = await this.withContext((c) => c.query(toPg(sql), params || []));
     return { changes: res.rowCount ?? 0 };
   }
 
@@ -253,11 +353,17 @@ async function bootstrap(): Promise<Database> {
     pg.types.setTypeParser(pg.types.builtins.INT8, (value: string) => parseInt(value, 10));
     const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
     const db = new PgDatabase(pool);
-    for (const stmt of splitStatements(SCHEMA_SQL)) await db.run(stmt);
-    await db.run(
-      `INSERT INTO _migrations (name, applied_at) VALUES (?, ?) ON CONFLICT DO NOTHING`,
-      [MIGRATION_NAME, new Date().toISOString()]
-    );
+    // Schema and policy DDL predate any user, so it runs in system context.
+    await runAsSystem(async () => {
+      for (const stmt of splitStatements(SCHEMA_SQL)) await db.run(stmt);
+      // Applied after the tables exist, and idempotent: each policy is dropped
+      // and recreated, so a changed policy takes effect on the next cold start.
+      for (const stmt of splitStatements(RLS_SQL)) await db.run(stmt);
+      await db.run(
+        `INSERT INTO _migrations (name, applied_at) VALUES (?, ?) ON CONFLICT DO NOTHING`,
+        [MIGRATION_NAME, new Date().toISOString()]
+      );
+    });
     return db;
   }
 

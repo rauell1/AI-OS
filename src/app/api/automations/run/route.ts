@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDb, runAsSystem, runAsUser } from "@/lib/db";
 import { runAllDue } from "@/app/actions/automations";
 
 export const runtime = "nodejs";
@@ -24,12 +24,14 @@ async function trigger(req: NextRequest) {
   if (!authorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const db = await getDb();
-  const owner = await db.get<{ id: string }>(
-    `SELECT id FROM users ORDER BY created_at ASC LIMIT 1`
-  );
+  // The owner lookup runs before any user scope exists; the automation run
+  // itself is then scoped to that owner so RLS applies normally.
+  const owner = await runAsSystem(async () => {
+    const db = await getDb();
+    return db.get<{ id: string }>(`SELECT id FROM users ORDER BY created_at ASC LIMIT 1`);
+  });
   if (!owner) return NextResponse.json({ error: "No user" }, { status: 404 });
-  const result = await runAllDue(owner.id);
+  const result = await runAsUser(owner.id, () => runAllDue(owner.id));
   return NextResponse.json(result);
 }
 

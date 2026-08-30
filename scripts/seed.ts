@@ -1,5 +1,5 @@
 import "./load-env";
-import { getDb } from "../src/lib/db";
+import { getDb, runAsSystem } from "../src/lib/db";
 import { newId, nowISO, toJSON, parseJSON } from "../src/lib/utils";
 import { SEED } from "../src/lib/seed-data";
 import { hashPassword } from "../src/lib/auth";
@@ -317,7 +317,7 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((e) => {
+runAsSystem(main).catch((e) => {
   console.error(e);
   process.exit(1);
 });
