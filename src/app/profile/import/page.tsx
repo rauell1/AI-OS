@@ -9,21 +9,54 @@ export default async function DataImporter() {
     "use server";
     const user = await requireUser();
     const db = await getDb();
+    const { newId, nowISO } = await import("@/lib/utils");
+    const JSZip = (await import("jszip")).default;
+    const { parse } = await import("csv-parse/sync");
     
-    // In a real implementation this would parse the CV or LinkedIn export ZIP.
-    // For now we log the upload to activity and mock the parsing result.
     const file = formData.get("file") as File;
-    if (file && file.size > 0) {
-      await db.insert("activity_events", {
-        id: "act_" + Date.now(),
-        user_id: user.id,
-        type: "data_import",
-        summary: `Imported data from ${file.name}`,
-        created_at: new Date().toISOString()
-      });
-      revalidatePath("/profile");
-      revalidatePath("/profile/import");
+    if (!file || file.size === 0) return;
+
+    if (file.name.endsWith(".zip")) {
+      const buf = await file.arrayBuffer();
+      const zip = await JSZip.loadAsync(buf);
+      
+      // Parse Skills.csv
+      const skillsFile = zip.file("Skills.csv");
+      if (skillsFile) {
+        const text = await skillsFile.async("text");
+        const records = parse(text, { columns: true, skip_empty_lines: true });
+        for (const row of records as any[]) {
+          if (!row.Name) continue;
+          await db.run(`INSERT INTO skills (id, user_id, name, category, proficiency, verification, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+            [newId("skl"), user.id, row.Name, "Imported", "Proficient", "user_provided", nowISO()]
+          );
+        }
+      }
+      
+      // Parse Education.csv
+      const eduFile = zip.file("Education.csv");
+      if (eduFile) {
+        const text = await eduFile.async("text");
+        const records = parse(text, { columns: true, skip_empty_lines: true });
+        for (const row of records as any[]) {
+          if (!row.School) continue;
+          await db.run(`INSERT INTO education (id, user_id, institution, degree, start_year, end_year, verification, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [newId("edu"), user.id, row.School, row.DegreeName || null, parseInt(row.StartDate) || null, parseInt(row.EndDate) || null, "user_provided", nowISO()]
+          );
+        }
+      }
     }
+    
+    await db.insert("activity_events", {
+      id: "act_" + Date.now(),
+      user_id: user.id,
+      type: "data_import",
+      summary: `Imported data from ${file.name}`,
+      created_at: new Date().toISOString()
+    });
+    
+    revalidatePath("/profile");
+    revalidatePath("/profile/import");
   }
 
   return (

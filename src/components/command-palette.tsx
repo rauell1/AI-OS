@@ -43,6 +43,7 @@ export function CommandPalette() {
               <Command.Item className="px-2 py-2 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-900 dark:text-zinc-100 aria-selected:bg-zinc-100 dark:aria-selected:bg-zinc-800" onSelect={() => runCommand(() => router.push('/tasks'))}>Tasks</Command.Item>
               <Command.Item className="px-2 py-2 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-900 dark:text-zinc-100 aria-selected:bg-zinc-100 dark:aria-selected:bg-zinc-800" onSelect={() => runCommand(() => router.push('/projects'))}>Projects</Command.Item>
               <Command.Item className="px-2 py-2 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-900 dark:text-zinc-100 aria-selected:bg-zinc-100 dark:aria-selected:bg-zinc-800" onSelect={() => runCommand(() => router.push('/opportunities'))}>Opportunities</Command.Item>
+              <Command.Item className="px-2 py-2 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-900 dark:text-zinc-100 aria-selected:bg-zinc-100 dark:aria-selected:bg-zinc-800" onSelect={() => runCommand(() => router.push('/career'))}>Career Roadmap</Command.Item>
             </Command.Group>
             
             <Command.Group heading="Actions" className="text-sm text-zinc-500 font-medium px-2 py-1 mt-2">

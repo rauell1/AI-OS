@@ -84,6 +84,12 @@ export async function executeRule(ruleId: string): Promise<{ actions: number; re
         actions++;
       }
       result = `${actions} follow-up reminder(s).`;
+    } else if (rule.trigger === "web_scraper") {
+      // Lazy load to avoid module cycles or massive cold starts
+      const { researchOpportunities } = await import("@/lib/agents/researcher");
+      await researchOpportunities(user.id);
+      result = "Web scraper ran successfully.";
+      actions = 1;
     } else {
       result = "Trigger executed (no specific action).";
       actions = 0;

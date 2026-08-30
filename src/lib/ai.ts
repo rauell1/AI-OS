@@ -199,6 +199,17 @@ export async function complete(opts: CompletionOpts): Promise<CompletionResult |
     await logRun(opts, null, "no_provider");
     return null;
   }
+  
+  if (opts.userId) {
+    const db = await getDb();
+    // Daily cost limit (e.g. $2.00/day)
+    const usage = await db.get(`SELECT SUM(cost) as total FROM ai_runs WHERE user_id = ? AND created_at >= date('now', 'start of day')`, [opts.userId]);
+    if (usage && usage.total > 2.00) {
+      await logRun(opts, null, "daily_cost_limit_exceeded");
+      return null;
+    }
+  }
+
   const model = opts.model || defaultModel(provider);
   let lastErr: any;
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -231,4 +242,30 @@ export async function completeJSON<T = any>(opts: CompletionOpts): Promise<T | n
   } catch {
     return null;
   }
+}
+
+export type StructuredDraftType = "linkedin_post" | "pitch_deck_outline" | "cold_email";
+
+/**
+ * Section 68: Specialized structured drafting modes.
+ */
+export async function draftStructuredContent(userId: string, type: StructuredDraftType, context: string): Promise<string | null> {
+  let system = "";
+  if (type === "linkedin_post") {
+    system = "You are a professional social media manager. Draft a compelling, professional LinkedIn post based on the context. Use paragraphs, keep it engaging, and suggest 3-4 hashtags. No emojis unless explicitly requested.";
+  } else if (type === "pitch_deck_outline") {
+    system = "You are a startup advisor. Draft a 10-slide pitch deck outline based on the project context. Format as a markdown list with Slide X: [Title] - [Key Points].";
+  } else if (type === "cold_email") {
+    system = "You are an expert sales SDR. Draft a concise, high-converting cold email (under 150 words). Include a clear hook, value proposition, and a low-friction call to action.";
+  }
+  
+  const res = await complete({
+    userId,
+    agent: `drafter_${type}`,
+    system,
+    messages: [{ role: "user", content: context }],
+    temperature: 0.4
+  });
+  
+  return res ? res.text : null;
 }

@@ -97,13 +97,16 @@ export async function answerQuestion(userId: string, history: { role: "user" | "
   const enabled = aiEnabled();
   if (enabled) {
     try {
+      const { searchKnowledge } = await import("./embeddings");
+      const ragResults = await searchKnowledge(question, userId, 3);
+      
       const res = await complete({
         agent: "chief_of_staff",
         userId,
         system:
-          "You are Rauell OS, Roy's personal Chief of Staff. Use ONLY the provided structured context to answer. Be concise, specific, and cite evidence (scores, dates). Never invent facts, jobs, or deadlines. Avoid em dashes and en dashes. If the context lacks the answer, say so.",
+          "You are Rauell OS, Roy's personal Chief of Staff. Use ONLY the provided structured context and RAG results to answer. Be concise, specific, and cite evidence (scores, dates). Never invent facts, jobs, or deadlines. Avoid em dashes and en dashes. If the context lacks the answer, say so.",
         messages: [
-          { role: "system", content: `CONTEXT:\n${JSON.stringify(ctx, null, 2)}` },
+          { role: "system", content: `CONTEXT:\n${JSON.stringify(ctx, null, 2)}\n\nKNOWLEDGE BASE RAG RESULTS:\n${JSON.stringify(ragResults, null, 2)}` },
           ...history.map((h) => ({ role: h.role, content: h.content })),
           { role: "user", content: question },
         ],
