@@ -15,5 +15,7 @@ data/
 .vscode/
 .DS_Store
 next-env.d.ts
+tsconfig.tsbuildinfo
+.vercel/
 *.db
 *.sqlite
