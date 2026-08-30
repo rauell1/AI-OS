@@ -1,0 +1,1309 @@
+// =============================================================================
+// Rauell OS - Database Schema (PostgreSQL / Neon)
+// Normalized master data. Every user-scoped table cascades on user delete.
+// See docs/DATABASE.md for the entity map.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+enum Verification {
+  VERIFIED // user confirmed with evidence
+  USER_PROVIDED // entered/imported by Roy
+  AI_INFERRED // AI suggested, unconfirmed
+  EXTERNAL_RESEARCHED // from a researched external source
+  UNVERIFIED
+}
+
+enum OpportunityType {
+  JOB
+  SCHOLARSHIP
+  PROGRAMME // master's / academic programme
+  FELLOWSHIP
+  GRANT
+  COMPETITION
+  TRAINING
+  OTHER
+}
+
+enum OpportunityStatus {
+  NEW
+  SHORTLISTED
+  SKIPPED
+  ARCHIVED
+  CONVERTED // became an application
+}
+
+enum SkipReason {
+  NOT_ELIGIBLE
+  POOR_FIT
+  LOCATION
+  COMPENSATION
+  DEADLINE
+  NOT_INTERESTED
+  DUPLICATE
+  OTHER
+}
+
+enum ApplicationStatus {
+  DISCOVERED
+  REVIEWING
+  SHORTLISTED
+  PREPARING
+  READY_FOR_REVIEW
+  READY_TO_SUBMIT
+  SUBMITTED
+  INTERVIEW
+  ASSESSMENT
+  OFFER
+  REJECTED
+  WITHDRAWN
+  WAITLISTED
+  ACCEPTED
+  ARCHIVED
+}
+
+enum RequirementStatus {
+  MISSING
+  REQUESTED
+  READY
+  SUBMITTED
+  WAIVED
+}
+
+enum TaskStatus {
+  INBOX
+  NEXT
+  IN_PROGRESS
+  WAITING
+  BLOCKED
+  SCHEDULED
+  DONE
+  CANCELLED
+}
+
+enum TaskSource {
+  MANUAL
+  EMAIL
+  CALENDAR
+  APPLICATION
+  SCHOLARSHIP_DEADLINE
+  JOB_APPLICATION
+  LEAD_FOLLOWUP
+  GITHUB
+  PROJECT
+  AI_RECOMMENDATION
+  DOCUMENT
+  MEETING
+  AUTOMATION
+}
+
+enum EmailCategory {
+  NEEDS_RESPONSE
+  WAITING
+  IMPORTANT
+  APPLICATION
+  SCHOLARSHIP
+  JOB
+  CLIENT
+  LEAD
+  PROJECT
+  FINANCE
+  NEWSLETTER
+  REFERENCE
+  LOW_PRIORITY
+}
+
+enum EmailDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum ApprovalType {
+  SEND_EMAIL
+  CREATE_EXTERNAL_EVENT
+  SEND_OUTREACH
+  CONTACT_LEAD
+  USE_SENSITIVE_DOCUMENT
+  FINALIZE_CV
+  FINALIZE_APPLICATION
+  PUBLISH_CONTENT
+  DELETE_RECORD
+  OTHER
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXECUTED
+  FAILED
+  EXPIRED
+}
+
+enum RequestedBy {
+  AI
+  AUTOMATION
+  SYSTEM
+  USER
+}
+
+enum AutomationMode {
+  MANUAL
+  SUGGEST
+  AUTO_PREPARE
+  AUTO_EXECUTE_SAFE
+}
+
+enum TriggerType {
+  SCHEDULE
+  EVENT
+}
+
+enum NotificationType {
+  DEADLINE
+  FOLLOW_UP
+  EMAIL
+  APPLICATION
+  MEETING
+  OPPORTUNITY
+  PROJECT
+  AUTOMATION
+  SECURITY
+  SYSTEM
+}
+
+enum Severity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum PersonRole {
+  RECRUITER
+  MANAGER
+  CLIENT
+  COLLEAGUE
+  PROFESSOR
+  REFEREE
+  PARTNER
+  LEAD
+  INVESTOR
+  SCHOLARSHIP_CONTACT
+  UNIVERSITY_CONTACT
+  COMMUNITY
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  RESEARCHING
+  QUALIFIED
+  OUTREACH_PREPARED
+  OUTREACH_SENT
+  REPLIED
+  MEETING
+  PROPOSAL
+  WON
+  LOST
+}
+
+enum OutreachStatus {
+  DRAFT
+  AWAITING_APPROVAL
+  APPROVED
+  SENT
+  REPLIED
+  ARCHIVED
+}
+
+enum Sensitivity {
+  NORMAL
+  SENSITIVE
+  HIGHLY_SENSITIVE
+}
+
+enum IntegrationProvider {
+  GMAIL
+  GCAL
+  GDRIVE
+  GITHUB
+}
+
+enum IntegrationStatus {
+  NOT_CONFIGURED
+  CONNECTED
+  ERROR
+  DISCONNECTED
+}
+
+enum GeneratedDocType {
+  CV
+  COVER_LETTER
+  STATEMENT
+  PROPOSAL
+  ESSAY
+  OTHER
+}
+
+enum ProjectStatus {
+  PLANNED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum Actor {
+  USER
+  AI
+  AUTOMATION
+  SYSTEM
+}
+
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  PAUSED
+  DROPPED
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum BriefType {
+  DAILY
+  WEEKLY
+}
+
+// -----------------------------------------------------------------------------
+// Identity & access
+// -----------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  timezone     String   @default("Africa/Nairobi")
+  onboardedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions        Session[]
+  profile         Profile?
+  educations      Education[]
+  employments     Employment[]
+  skills          Skill[]
+  certificates    Certificate[]
+  projects        Project[]
+  organizations   Organization[]
+  people          Person[]
+  interactions    Interaction[]
+  opportunities   Opportunity[]
+  applications    Application[]
+  generatedDocs   GeneratedDoc[]
+  tasks           Task[]
+  documents       Document[]
+  referees        Referee[]
+  leads           Lead[]
+  outreach        Outreach[]
+  followUps       FollowUp[]
+  emailThreads    EmailThread[]
+  emailMessages   EmailMessage[]
+  calendarEvents  CalendarEvent[]
+  notes           Note[]
+  knowledgeItems  KnowledgeItem[]
+  aiRuns          AiRun[]
+  automationRules AutomationRule[]
+  automationRuns  AutomationRun[]
+  notifications   Notification[]
+  approvals       Approval[]
+  activityEvents  ActivityEvent[]
+  decisions       Decision[]
+  goals           Goal[]
+  integrations    Integration[]
+  syncRuns        SyncRun[]
+  preferences     Preference[]
+  memories        Memory[]
+  auditLogs       AuditLog[]
+  briefs          Brief[]
+  jobs            JobRun[]
+  applicationQuestions ApplicationQuestion[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// -----------------------------------------------------------------------------
+// Master Profile
+// -----------------------------------------------------------------------------
+
+model Profile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  fullName          String
+  headline          String?
+  summary           String?
+  nationality       String?
+  location          String?
+  phone             String?
+  email             String?
+  portfolioUrl      String?
+  links             Json? // {linkedin, github, website...}
+  careerPreferences Json? // {roles[], domains[], locations[], remoteOk, salary, studyCountries[]}
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Education {
+  id            String      @id @default(cuid())
+  userId        String
+  institution   String
+  degree        String
+  field         String?
+  startDate     DateTime?
+  endDate       DateTime?
+  grade         String?
+  classification String?
+  highlights    Json? // string[]
+  verification  Verification @default(USER_PROVIDED)
+  notes         String?
+  createdAt     DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Employment {
+  id            String       @id @default(cuid())
+  userId        String
+  organizationId String?
+  title         String
+  employmentType String?
+  location      String?
+  startDate     DateTime?
+  endDate       DateTime?
+  current       Boolean      @default(false)
+  summary       String?
+  highlights    Json? // string[]
+  verification  Verification @default(USER_PROVIDED)
+  createdAt     DateTime     @default(now())
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization  Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+}
+
+model Skill {
+  id             String       @id @default(cuid())
+  userId         String
+  name           String
+  category       String? // e.g. Engineering, Software, Data, Tools
+  proficiency    Int          @default(3) // 1..5
+  yearsExperience Float?
+  lastUsedAt     DateTime?
+  confidence     Int          @default(80) // 0..100
+  verification   Verification @default(USER_PROVIDED)
+  summary        String?
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  evidence       SkillEvidence[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model SkillEvidence {
+  id      String @id @default(cuid())
+  skillId String
+  refType String // PROJECT | EMPLOYMENT | EDUCATION | CERTIFICATE | DOCUMENT | PORTFOLIO
+  refId   String
+  note    String?
+  skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([skillId])
+}
+
+model Certificate {
+  id           String       @id @default(cuid())
+  userId       String
+  name         String
+  issuer       String?
+  issuedAt     DateTime?
+  expiresAt    DateTime?
+  url          String?
+  verification Verification @default(USER_PROVIDED)
+  notes        String?
+  createdAt    DateTime     @default(now())
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+// -----------------------------------------------------------------------------
+// Projects
+// -----------------------------------------------------------------------------
+
+model Project {
+  id             String        @id @default(cuid())
+  userId         String
+  name           String
+  slug           String
+  category       String?
+  status         ProjectStatus @default(ACTIVE)
+  overview       String?
+  goals          Json? // string[]
+  milestones     Json? // [{title, dueAt, done}]
+  repoUrl        String?
+  urls           Json? // {label,url}[]
+  startedAt      DateTime?
+  aiSummary      String?
+  nextActions    Json? // string[]
+  lastActivityAt DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks          Task[]
+  repositories   ProjectRepository[]
+  documents      Document[]
+  calendarEvents CalendarEvent[]
+
+  @@unique([userId, slug])
+  @@index([userId])
+}
+
+model ProjectRepository {
+  id            String   @id @default(cuid())
+  projectId     String
+  fullName      String // e.g. rauell1/safaricharge
+  url           String?
+  description   String?
+  language      String?
+  lastCommitAt  DateTime?
+  openIssues    Int?
+  lastSyncAt    DateTime?
+  aiSummary     String?
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, fullName])
+}
+
+// -----------------------------------------------------------------------------
+// Network: organizations & people (shared across all modules)
+// -----------------------------------------------------------------------------
+
+model Organization {
+  id          String       @id @default(cuid())
+  userId      String
+  name        String
+  domain      String?
+  website     String?
+  industry    String?
+  location    String?
+  country     String?
+  types       Json? // ["EMPLOYER","UNIVERSITY","SCHOLARSHIP_PROVIDER","CLIENT","PARTNER","LEAD","STAKEHOLDER","TRAINING"]
+  description String?
+  notes       String?
+  verification Verification @default(USER_PROVIDED)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employments Employment[]
+  people      Person[]
+  opportunities Opportunity[]
+  leads       Lead[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Person {
+  id               String      @id @default(cuid())
+  userId           String
+  name             String
+  email            String?
+  phone            String?
+  title            String?
+  organizationId   String?
+  roles            Json? // PersonRole[]
+  howMet           String?
+  notes            String?
+  lastInteractionAt DateTime?
+  nextFollowUpAt   DateTime?
+  verification     Verification @default(USER_PROVIDED)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  interactions     Interaction[]
+  followUps        FollowUp[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Interaction {
+  id             String   @id @default(cuid())
+  userId         String
+  personId       String?
+  organizationId String?
+  type           String // EMAIL | MEETING | CALL | NOTE | EVENT
+  summary        String
+  occurredAt     DateTime @default(now())
+  refType        String?
+  refId          String?
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  person         Person?  @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([personId])
+}
+
+// -----------------------------------------------------------------------------
+// Opportunities (jobs, scholarships, programmes, fellowships, grants...)
+// -----------------------------------------------------------------------------
+
+model Opportunity {
+  id              String           @id @default(cuid())
+  userId          String
+  type            OpportunityType
+  title           String
+  organizationId  String?
+  organizationName String? // denormalized for list speed when org not created
+  sourceName      String?
+  sourceUrl       String?
+  location        String?
+  country         String?
+  remoteMode      String? // ONSITE | HYBRID | REMOTE
+  description     String?
+  requirements    Json? // string[]
+  minQualifications Json?
+  preferredQualifications Json?
+  sectorTags      Json? // string[] e.g. ["renewable-energy","ev"]
+  salaryMin       Int?
+  salaryMax       Int?
+  currency        String?
+  // scholarship/programme specific
+  fundingType     String? // FULLY_FUNDED | PARTIAL | TUITION_ONLY | SELF_FUNDED | UNKNOWN
+  fundingCovers   Json? // ["TUITION","STIPEND","TRAVEL","INSURANCE"]
+  stipend         String?
+  englishRequirement String? // IELTS 6.5 etc
+  englishWaiverPossible Boolean?
+  greRequired     Boolean?
+  degreeRequirement String?
+  fieldRequirements Json? // string[]
+  durationMonths  Int?
+  universityName  String?
+  consortium      Json? // string[]
+  nationalityRestrictions Json? // string[] (eligible/eligible-except semantics in note)
+  eligibilityNotes String?
+  applicationFee  Float?
+  feeCurrency     String?
+  // lifecycle
+  opensAt         DateTime?
+  deadlineAt      DateTime?
+  publishedAt     DateTime?
+  retrievedAt     DateTime         @default(now())
+  lastVerifiedAt  DateTime?
+  status          OpportunityStatus @default(NEW)
+  skipReason      SkipReason?
+  skipNote        String?
+  duplicateOfId   String?
+  // scoring (deterministic engine, explainable)
+  fitScore        Int?
+  fitBreakdown    Json? // Factor[]
+  fitLabel        String?
+  fitExplanation  String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  application     Application?
+
+  @@index([userId, type, status])
+  @@index([userId, deadlineAt])
+}
+
+// -----------------------------------------------------------------------------
+// Applications
+// -----------------------------------------------------------------------------
+
+model Application {
+  id                String            @id @default(cuid())
+  userId            String
+  opportunityId     String            @unique
+  status            ApplicationStatus @default(DISCOVERED)
+  deadlineAt        DateTime?
+  submittedAt       DateTime?
+  outcome           String?
+  fitScoreSnapshot  Int?
+  readiness         Int               @default(0) // 0..100 computed
+  priorityScore     Int?
+  priorityReasons   Json?
+  cvDocId           String?
+  coverLetterDocId  String?
+  notes             String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity       Opportunity       @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  requirements      ApplicationRequirement[]
+  questions         ApplicationQuestion[]
+  events            ApplicationEvent[]
+  generatedDocs     GeneratedDoc[]
+  tasks             Task[]
+  followUps         FollowUp[]
+
+  @@index([userId, status])
+}
+
+model ApplicationRequirement {
+  id            String            @id @default(cuid())
+  applicationId String
+  text          String
+  category      String? // DOCUMENT | INFORMATION | ACTION
+  status        RequirementStatus @default(MISSING)
+  evidence      Json? // {refType, refId, label}
+  notes         String?
+  application   Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+}
+
+model ApplicationQuestion {
+  id            String   @id @default(cuid())
+  userId        String
+  applicationId String? // null = reusable library answer
+  question      String
+  answer        String?
+  status        String   @default("DRAFT") // DRAFT | AI_DRAFT | APPROVED | SUBMITTED
+  source        String? // where the canonical answer came from
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([applicationId])
+}
+
+model ApplicationEvent {
+  id            String   @id @default(cuid())
+  applicationId String
+  type          String // STATUS_CHANGE | DOCUMENT | EMAIL | INTERVIEW | NOTE | SCORING | SUBMISSION
+  summary       String
+  at            DateTime @default(now())
+  meta          Json?
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+}
+
+model GeneratedDoc {
+  id            String          @id @default(cuid())
+  userId        String
+  applicationId String?
+  type          GeneratedDocType
+  title         String
+  version       Int             @default(1)
+  content       String @db.Text
+  format        String          @default("markdown")
+  promptVersion String?
+  model         String?
+  approvedAt    DateTime?
+  submittedAt   DateTime?
+  supersedesId  String?
+  createdAt     DateTime        @default(now())
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application   Application?    @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([applicationId])
+}
+
+// -----------------------------------------------------------------------------
+// Tasks
+// -----------------------------------------------------------------------------
+
+model Task {
+  id             String     @id @default(cuid())
+  userId         String
+  title          String
+  description    String?
+  source         TaskSource @default(MANUAL)
+  sourceRef      String?
+  projectId      String?
+  applicationId  String?
+  personId       String?
+  organizationId String?
+  leadId         String?
+  goalId         String?
+  status         TaskStatus @default(INBOX)
+  dueAt          DateTime?
+  priorityScore  Int        @default(50)
+  priorityReasons Json?
+  effortMin      Int?
+  aiReasoning    String?
+  completedAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project        Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  application    Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  lead           Lead?      @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  goal           Goal?      @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  dependencies   TaskDependency[] @relation("task")
+  blocks         TaskDependency[] @relation("dependsOn")
+
+  @@index([userId, status])
+  @@index([userId, dueAt])
+}
+
+model TaskDependency {
+  id             String @id @default(cuid())
+  taskId         String
+  dependsOnTaskId String
+  task           Task   @relation("task", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOn      Task   @relation("dependsOn", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dependsOnTaskId])
+}
+
+// -----------------------------------------------------------------------------
+// Documents & references
+// -----------------------------------------------------------------------------
+
+model Document {
+  id                String      @id @default(cuid())
+  userId            String
+  name              String
+  category          String // CV | DEGREE | TRANSCRIPT | KCSE | PASSPORT | ID | RECOMMENDATION | EMPLOYMENT_LETTER | CERTIFICATE | PORTFOLIO | WRITING_SAMPLE | PROPOSAL | REPORT | APPLICATION_ATTACHMENT | OTHER
+  issuer            String?
+  issuedAt          DateTime?
+  expiresAt         DateTime?
+  sensitivity       Sensitivity @default(NORMAL)
+  allowAiProcessing Boolean     @default(false)
+  storageProvider   String      @default("local")
+  storageKey        String
+  mimeType          String?
+  sizeBytes         Int?
+  hash              String?
+  version           Int         @default(1)
+  notes             String?
+  usedInApplications Json?
+  projectId         String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project           Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId, category])
+}
+
+model Referee {
+  id               String    @id @default(cuid())
+  userId           String
+  name             String
+  title            String?
+  organization     String?
+  relationship     String?
+  email            String?
+  phone            String?
+  permissionStatus String? // GRANTED | ASKED | NOT_ASKED | DECLINED
+  letterStatus     String? // AVAILABLE | ON_REQUEST | PENDING | UNAVAILABLE
+  preferredFor     Json? // string[] programme types
+  lastContactedAt  DateTime?
+  notes            String?
+  createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// -----------------------------------------------------------------------------
+// Business development: leads & outreach
+// -----------------------------------------------------------------------------
+
+model Lead {
+  id                  String     @id @default(cuid())
+  userId              String
+  organizationId      String?
+  contactPersonId     String?
+  solution            String // e.g. "Solar feasibility modelling"
+  status              LeadStatus @default(NEW)
+  score               Int?
+  scoreBreakdown      Json?
+  observedEvidence    Json? // {fact, source, retrievedAt}[]
+  inferences          Json? // string[]
+  hypotheses          Json? // string[]
+  potentialContactRole String?
+  publicContact       String?
+  pipelineValue       Float?
+  currency            String?
+  nextStep            String?
+  notes               String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization        Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  outreach            Outreach[]
+  tasks               Task[]
+  followUps           FollowUp[]
+
+  @@index([userId, status])
+}
+
+model Outreach {
+  id         String         @id @default(cuid())
+  userId     String
+  leadId     String
+  channel    String         @default("email")
+  status     OutreachStatus @default(DRAFT)
+  subject    String?
+  content    String @db.Text
+  approvedAt DateTime?
+  sentAt     DateTime?
+  replyAt    DateTime?
+  notes      String?
+  createdAt  DateTime       @default(now())
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead       Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+}
+
+model FollowUp {
+  id            String    @id @default(cuid())
+  userId        String
+  title         String
+  personId      String?
+  organizationId String?
+  leadId        String?
+  applicationId String?
+  dueAt         DateTime
+  status        String    @default("OPEN") // OPEN | DONE | CANCELLED
+  lastNudgedAt  DateTime?
+  policyDays    Int?
+  sourceReason  String?
+  createdAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  person        Person?   @relation(fields: [personId], references: [id], onDelete: SetNull)
+  lead          Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, dueAt])
+}
+
+// -----------------------------------------------------------------------------
+// Email intelligence & calendar
+// -----------------------------------------------------------------------------
+
+model EmailThread {
+  id             String         @id @default(cuid())
+  userId         String
+  subject        String
+  people         Json?
+  category       EmailCategory?
+  lastMessageAt  DateTime
+  needsResponse  Boolean?
+  waitingSince   DateTime?
+  applicationId  String?
+  projectId      String?
+  leadId         String?
+  externalId     String?
+  createdAt      DateTime       @default(now())
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages       EmailMessage[]
+
+  @@unique([userId, externalId])
+  @@index([userId, lastMessageAt])
+}
+
+model EmailMessage {
+  id                 String        @id @default(cuid())
+  userId             String
+  threadId           String?
+  direction          EmailDirection @default(INBOUND)
+  fromName           String?
+  fromEmail          String?
+  toEmails           Json?
+  subject            String
+  snippet            String?
+  body               String? @db.Text
+  receivedAt         DateTime
+  category           EmailCategory  @default(IMPORTANT)
+  categoryConfidence Int           @default(50) // 0..100
+  aiExtract          Json? // {people, deadlines, actions, attachments, sentiment, urgency, followUpDate}
+  needsResponse      Boolean       @default(false)
+  respondedAt        DateTime?
+  readAt             DateTime?
+  userCorrected      Boolean       @default(false)
+  externalId         String?
+  createdAt          DateTime      @default(now())
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread             EmailThread?  @relation(fields: [threadId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, externalId])
+  @@index([userId, category, receivedAt])
+}
+
+model CalendarEvent {
+  id               String   @id @default(cuid())
+  userId           String
+  title            String
+  startAt          DateTime
+  endAt            DateTime?
+  location         String?
+  attendees        Json?
+  source           String   @default("MANUAL") // MANUAL | GOOGLE
+  relatedProjectId String?
+  brief            String?
+  notes            String?
+  externalId       String?
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project          Project? @relation(fields: [relatedProjectId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, source, externalId])
+  @@index([userId, startAt])
+}
+
+// -----------------------------------------------------------------------------
+// Knowledge, notes, AI
+// -----------------------------------------------------------------------------
+
+model Note {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String @db.Text
+  pinned    Boolean  @default(false)
+  refType   String?
+  refId     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model KnowledgeItem {
+  id         String   @id @default(cuid())
+  userId     String
+  sourceType String // DOCUMENT | NOTE | EMAIL | GITHUB | PORTFOLIO | MANUAL | PROFILE
+  sourceId   String?
+  title      String
+  content    String @db.Text
+  embedding  Json? // float[] (pgvector-ready; see docs)
+  tokens     Int?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sourceType])
+}
+
+model AiRun {
+  id            String   @id @default(cuid())
+  userId        String?
+  role          String // FAST | RESEARCH | REASONING | WRITING | DOC_EXTRACT | EMBEDDING
+  provider      String
+  model         String
+  purpose       String
+  promptVersion String?
+  inputTokens   Int?
+  outputTokens  Int?
+  costUsd       Float?
+  latencyMs     Int?
+  status        String // SUCCESS | FAILED | TIMEOUT | DISABLED
+  error         String?
+  cached        Boolean  @default(false)
+  refType       String?
+  refId         String?
+  createdAt     DateTime @default(now())
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}
+
+model AiCache {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  response  Json
+  createdAt DateTime @default(now())
+  expiresAt DateTime?
+}
+
+// -----------------------------------------------------------------------------
+// Automations & background jobs
+// -----------------------------------------------------------------------------
+
+model AutomationRule {
+  id        String         @id @default(cuid())
+  userId    String
+  key       String // e.g. daily-brief, weekly-review, deadline-scan
+  name      String
+  trigger   TriggerType
+  schedule  String? // cron-ish descriptor: "daily 07:00" | "weekly mon 18:00"
+  event     String?
+  mode      AutomationMode @default(SUGGEST)
+  enabled   Boolean        @default(true)
+  lastRunAt DateTime?
+  nextRunAt DateTime?
+  config    Json?
+  createdAt DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs      AutomationRun[]
+
+  @@unique([userId, key])
+  @@index([userId, enabled])
+}
+
+model AutomationRun {
+  id             String    @id @default(cuid())
+  ruleId         String
+  userId         String
+  status         String // SUCCESS | FAILED | RUNNING
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
+  result         Json?
+  error          String?
+  actionsCreated Int       @default(0)
+  rule           AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, startedAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  severity  Severity         @default(INFO)
+  title     String
+  body      String?
+  refType   String?
+  refId     String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+model Approval {
+  id             String        @id @default(cuid())
+  userId         String
+  type           ApprovalType
+  title          String
+  rationale      String?
+  payload        Json
+  preview        Json?
+  affected       Json?
+  status         ApprovalStatus @default(PENDING)
+  requestedBy    RequestedBy    @default(AI)
+  decidedAt      DateTime?
+  executedAt     DateTime?
+  executionError String?
+  expiresAt      DateTime?
+  createdAt      DateTime       @default(now())
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+// -----------------------------------------------------------------------------
+// Activity, decisions, goals, memory
+// -----------------------------------------------------------------------------
+
+model ActivityEvent {
+  id      String @id @default(cuid())
+  userId  String
+  actor   Actor  @default(USER)
+  type    String // OPPORTUNITY_DISCOVERED | CV_GENERATED | EMAIL_IMPORTED | TASK_COMPLETED | APPLICATION_SUBMITTED | ...
+  refType String?
+  refId   String?
+  summary String
+  meta    Json?
+  at      DateTime @default(now())
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, at])
+}
+
+model Decision {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  context   String?
+  reason    String
+  related   Json? // [{refType, refId, label}]
+  decidedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, decidedAt])
+}
+
+model Goal {
+  id          String     @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  category    String? // CAREER | EDUCATION | PROJECT | BUSINESS | NETWORK | SKILLS
+  targetDate  DateTime?
+  status      GoalStatus @default(ACTIVE)
+  progress    Int        @default(0) // 0..100
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+
+  @@index([userId, status])
+}
+
+model Memory {
+  id        String   @id @default(cuid())
+  userId    String
+  category  String // PREFERENCES | CAREER | APPLICATIONS | WRITING | PROJECTS | RELATIONSHIPS | WORKFLOWS
+  content   String @db.Text
+  source    Actor    @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, category])
+}
+
+model Preference {
+  id     String @id @default(cuid())
+  userId String
+  key    String
+  value  Json
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+}
+
+model PromptVersion {
+  id       String  @id @default(cuid())
+  key      String
+  version  Int
+  template String @db.Text
+  active   Boolean @default(true)
+
+  @@unique([key, version])
+}
+
+// -----------------------------------------------------------------------------
+// Integrations, sync, audit, briefs, jobs
+// -----------------------------------------------------------------------------
+
+model Integration {
+  id               String              @id @default(cuid())
+  userId           String
+  provider         IntegrationProvider
+  status           IntegrationStatus   @default(NOT_CONFIGURED)
+  scopes           Json?
+  accessTokenEnc   String? // AES-256-GCM encrypted
+  refreshTokenEnc  String?
+  tokenExpiresAt   DateTime?
+  lastSyncAt       DateTime?
+  config           Json? // e.g. gmail: {mode:"read_only", sendEnabled:false}; drive: {folderIds:[]}
+  error            String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syncRuns         SyncRun[]
+
+  @@unique([userId, provider])
+}
+
+model SyncRun {
+  id           String    @id @default(cuid())
+  integrationId String
+  userId       String
+  status       String    @default("RUNNING")
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+  stats        Json?
+  error        String?
+  integration  Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId, startedAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  event     String // LOGIN | LOGIN_FAILED | LOGOUT | SETUP | EXPORT | APPROVAL_DECIDED | ...
+  ip        String?
+  userAgent String?
+  meta      Json?
+  at        DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, at])
+}
+
+model Brief {
+  id          String    @id @default(cuid())
+  userId      String
+  type        BriefType
+  forDate     DateTime  @db.Date
+  content     Json // structured sections
+  aiNarrative String? @db.Text
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type, forDate])
+  @@index([userId, forDate])
+}
+
+model JobRun {
+  id             String    @id @default(cuid())
+  name           String
+  userId         String?
+  status         JobStatus @default(PENDING)
+  payload        Json?
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(3)
+  runAt          DateTime  @default(now())
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  result         Json?
+  error          String?
+  idempotencyKey String?   @unique
+  createdAt      DateTime  @default(now())
+  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status, runAt])
+}
