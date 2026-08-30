@@ -1,5 +1,5 @@
 import "./load-env";
-import { getDb } from "../src/lib/db";
+import { getDb, runAsSystem } from "../src/lib/db";
 import { SEED } from "../src/lib/seed-data";
 
 async function main() {
@@ -8,4 +8,4 @@ async function main() {
   console.log("Removed seeded user. Re-run `npm run db:seed` to recreate.");
   process.exit(0);
 }
-main().catch((e) => { console.error(e); process.exit(1); });
+runAsSystem(main).catch((e) => { console.error(e); process.exit(1); });

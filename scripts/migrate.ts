@@ -1,7 +1,7 @@
 import "./load-env";
 import fs from "node:fs";
 import { loadedEnvFiles, describeDatabaseUrl } from "./load-env";
-import { getDb } from "../src/lib/db";
+import { getDb, runAsSystem } from "../src/lib/db";
 
 async function main() {
   // Report configuration before connecting. "Backend: sqlite" when Postgres was
@@ -11,7 +11,7 @@ async function main() {
   console.log(`DATABASE_URL: ${describeDatabaseUrl()}`);
 
   const db = await getDb();
-  const rows = await db.query<{ name: string }>(`SELECT name FROM _migrations`);
+  const rows = await runAsSystem(() => db.query<{ name: string }>(`SELECT name FROM _migrations`));
   console.log(`Database ready. Applied migrations: ${rows.map((r) => r.name).join(", ") || "none"}`);
   console.log(`Backend: ${db.backend}`);
 
