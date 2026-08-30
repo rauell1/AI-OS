@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { newId, nowISO, parseJSON, toJSON } from "@/lib/utils";
 import { logActivity } from "@/lib/activity";
-import { scorePriority } from "@/lib/scoring";
+import { scoreTaskPriority, type TaskSource, type TaskStatus } from "@/lib/scoring";
 
 export async function createTask(formData: FormData) {
   const user = await requireUser();
@@ -76,10 +76,30 @@ export async function deleteTask(id: string) {
 export async function autoPrioritizeTasks() {
   const user = await requireUser();
   const db = await getDb();
-  const tasks = await db.query(`SELECT * FROM tasks WHERE user_id = ? AND status NOT IN ('done','cancelled')`, [user.id]);
+  const tasks = await db.query<any>(`SELECT * FROM tasks WHERE user_id = ? AND status NOT IN ('done','cancelled')`, [user.id]);
+  const blockCounts = await db.query<{ depends_on: string; n: number }>(
+    `SELECT depends_on, COUNT(*) as n FROM task_dependencies WHERE depends_on IN (${tasks.map(() => "?").join(",") || "''"}) GROUP BY depends_on`,
+    tasks.map((t: any) => t.id)
+  );
+  const blocksMap = new Map(blockCounts.map((b) => [b.depends_on, b.n]));
   for (const t of tasks) {
-    const { score, reasons } = scorePriority({ dueDate: t.due_date, basePriority: t.priority, effortMinutes: t.effort ? parseInt(t.effort) * 60 : undefined });
-    await db.update("tasks", t.id, { ai_reasoning: reasons.join(" "), updated_at: nowISO() });
+    const app = t.application_id
+      ? await db.get<{ deadline: string | null }>(`SELECT deadline FROM applications WHERE id = ?`, [t.application_id])
+      : null;
+    const ageDays = t.created_at ? Math.floor((Date.now() - new Date(t.created_at).getTime()) / 86400000) : 0;
+    const { score, reasons } = scoreTaskPriority({
+      title: t.title,
+      status: (t.status || "inbox") as TaskStatus,
+      source: (t.source || "manual") as TaskSource,
+      dueAt: t.due_date,
+      effortMin: t.effort ? parseInt(t.effort) || undefined : undefined,
+      applicationId: t.application_id,
+      personId: t.person_id,
+      blocksCount: blocksMap.get(t.id) ?? 0,
+      ageDays,
+      applicationDeadline: app?.deadline ?? null,
+    });
+    await db.update("tasks", t.id, { ai_reasoning: `Priority score ${score}/100. ${reasons.join(". ")}.`, updated_at: nowISO() });
   }
   revalidatePath("/tasks");
   return { ok: true, count: tasks.length };

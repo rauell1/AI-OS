@@ -5,24 +5,29 @@ import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { newId, nowISO, toJSON } from "@/lib/utils";
 import { logActivity } from "@/lib/activity";
+import { classifyEmailHeuristic } from "@/lib/engines/email";
 
 export async function addEmail(formData: FormData) {
   const user = await requireUser();
   const subject = String(formData.get("subject") || "").trim();
   if (!subject) return { error: "Subject is required." };
   const db = await getDb();
+  const fromAddr = String(formData.get("from_addr") || "") || null;
+  const snippet = String(formData.get("snippet") || "") || null;
+  const manualCategory = String(formData.get("category") || "") || null;
+  const classification = classifyEmailHeuristic(subject, snippet || "", fromAddr || undefined);
   await db.insert("emails", {
     id: newId("eml"),
     user_id: user.id,
     thread_id: null,
-    from_addr: String(formData.get("from_addr") || "") || null,
+    from_addr: fromAddr,
     from_name: String(formData.get("from_name") || "") || null,
     subject,
-    snippet: String(formData.get("snippet") || "") || null,
+    snippet,
     body_text: null,
     received_at: nowISO(),
-    category: String(formData.get("category") || "inbox"),
-    confidence: null,
+    category: manualCategory || classification.category,
+    confidence: manualCategory ? null : classification.confidence,
     deadline: String(formData.get("deadline") || "") || null,
     requested_action: String(formData.get("requested_action") || "") || null,
     sentiment: null,
