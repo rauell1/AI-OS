@@ -18,6 +18,8 @@ export async function middleware(req: NextRequest) {
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/integrations") ||
+    // Scheduled trigger: authenticates itself with CRON_SECRET, not a session.
+    pathname === "/api/automations/run" ||
     pathname === "/favicon.ico" ||
     pathname.startsWith("/icons")
   ) {
