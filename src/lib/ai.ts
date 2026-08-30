@@ -54,7 +54,7 @@ function providerKey(p: AIProviderName): string | undefined {
 }
 
 function defaultModel(p: AIProviderName): string {
-  if (p === "nvidia") return process.env.NVIDIA_MODEL || "meta/llama-3.1-70b-instruct";
+  if (p === "nvidia") return process.env.NVIDIA_MODEL || "meta/llama-3.2-90b-vision-instruct";
   if (p === "openai") return process.env.OPENAI_MODEL || "gpt-4o-mini";
   if (p === "anthropic") return process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
   return process.env.GEMINI_MODEL || "gemini-1.5-flash";
