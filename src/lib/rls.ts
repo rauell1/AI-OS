@@ -28,6 +28,7 @@ const USER_SCOPED = [
   "outreach", "followups", "notes", "knowledge_items", "ai_runs",
   "automation_rules", "notifications", "approvals", "activity_events",
   "decisions", "integrations", "audit_logs", "user_preferences", "goals",
+  "opportunity_sources",
 ];
 
 /** Child tables reached through a parent that carries user_id. */

@@ -43,11 +43,16 @@ export async function toggleRule(id: string, status: "active" | "paused") {
   revalidatePath("/automations");
 }
 
-export async function executeRule(ruleId: string): Promise<{ actions: number; result: string }> {
+export async function executeRule(
+  ruleId: string,
+  actingUserId?: string
+): Promise<{ actions: number; result: string }> {
   const db = await getDb();
   const rule = await db.get(`SELECT * FROM automation_rules WHERE id = ?`, [ruleId]);
   if (!rule) return { actions: 0, result: "not found" };
-  const user = await requireUser();
+  // The scheduled run has no session cookie, so the owner is passed in.
+  // requireUser() would throw UNAUTHENTICATED and fail every nightly run.
+  const user = actingUserId ? { id: actingUserId } : await requireUser();
   const runId = newId("arn");
   await db.insert("automation_runs", {
     id: runId, rule_id: ruleId, started_at: nowISO(), finished_at: null, status: "running",
@@ -130,7 +135,7 @@ export async function runDailyBriefNow() {
 export async function runAllDue(userId: string) {
   const db = await getDb();
   const rules = await db.query(`SELECT id FROM automation_rules WHERE user_id = ? AND status = 'active' AND (next_run IS NULL OR next_run <= ?)`, [userId, nowISO()]);
-  for (const r of rules) await executeRule(r.id);
+  for (const r of rules) await executeRule(r.id, userId);
   return { ran: rules.length };
 }
 
