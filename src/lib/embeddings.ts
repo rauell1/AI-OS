@@ -30,8 +30,9 @@ export async function embedKnowledgeItem(itemId: string) {
   if (embedding) {
     // pgvector uses a string format '[0.1, 0.2, ...]'
     const vectorStr = `[${embedding.join(",")}]`;
-    // Only attempt vector update if backend is postgres
-    if (db.backend === "postgres") {
+    // Only write the vector when pgvector is actually installed; the column is
+    // plain TEXT otherwise and the similarity operators do not exist.
+    if (db.supportsVectorSearch) {
       await db.run(`UPDATE knowledge_items SET embedding_status = 'embedded', embedding_vector = $1 WHERE id = $2`, [vectorStr, itemId]);
     } else {
       await db.run(`UPDATE knowledge_items SET embedding_status = 'embedded' WHERE id = ?`, [itemId]);
@@ -43,13 +44,21 @@ export async function embedKnowledgeItem(itemId: string) {
 
 export async function searchKnowledge(query: string, userId: string, limit = 5) {
   const db = await getDb();
-  if (db.backend !== "postgres") {
-    // Fallback to basic LIKE search for SQLite
-    return await db.query(`SELECT id, title, body FROM knowledge_items WHERE user_id = ? AND (title LIKE ? OR body LIKE ?) LIMIT ?`, [userId, `%${query}%`, `%${query}%`, limit]);
-  }
-  
+  const keywordSearch = () =>
+    db.query(
+      `SELECT id, title, body FROM knowledge_items WHERE user_id = ? AND (title LIKE ? OR body LIKE ?) LIMIT ?`,
+      [userId, `%${query}%`, `%${query}%`, limit]
+    );
+
+  // Keyword fallback whenever similarity search is unavailable: always on
+  // SQLite, and on Postgres without pgvector, where the <=> operator below
+  // would be a syntax error.
+  if (!db.supportsVectorSearch) return keywordSearch();
+
+  // Embedding the query needs an API key. Without one, fall back rather than
+  // returning nothing - an empty result reads as "you have no notes".
   const embedding = await generateEmbedding(query);
-  if (!embedding) return [];
+  if (!embedding) return keywordSearch();
   
   const vectorStr = `[${embedding.join(",")}]`;
   // Cosine distance operator is <=>

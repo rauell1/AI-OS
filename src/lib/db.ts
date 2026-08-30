@@ -88,6 +88,8 @@ export interface Database {
   update(table: string, id: string, values: Record<string, any>): Promise<void>;
   del(table: string, id: string): Promise<void>;
   backend: "sqlite" | "postgres";
+  /** True only when pgvector is installed, so similarity search is usable. */
+  supportsVectorSearch: boolean;
   close(): Promise<void>;
 }
 
@@ -151,6 +153,16 @@ function resolveWasm(file: string): string {
   return file;
 }
 
+// The embedding column's type depends on whether pgvector is installed.
+// Declaring vector(1536) unconditionally made the extension a hard dependency:
+// CREATE TABLE fails without it, so every query failed and the whole app was
+// dead at bootstrap rather than losing just similarity search.
+const EMBEDDING_TYPE_TOKEN = "__EMBEDDING_TYPE__";
+
+function applyEmbeddingType(sql: string, hasVector: boolean): string {
+  return sql.split(EMBEDDING_TYPE_TOKEN).join(hasVector ? "vector(1536)" : "TEXT");
+}
+
 function splitStatements(sql: string): string[] {
   return sql
     .split(";")
@@ -173,6 +185,8 @@ function toPg(sql: string): string {
 class SqlJsDatabase implements Database {
   static persistWarned = false;
   backend = "sqlite" as const;
+  // SQLite has no pgvector equivalent; knowledge search falls back to keywords.
+  supportsVectorSearch = false;
   private db: any;
   private persistTimer: NodeJS.Timeout | null = null;
 
@@ -262,6 +276,8 @@ class SqlJsDatabase implements Database {
 // --- node-postgres (Neon) backend ------------------------------------------
 class PgDatabase implements Database {
   backend = "postgres" as const;
+  // Set during bootstrap once pgvector's availability is known.
+  supportsVectorSearch = false;
   private pool: any;
 
   constructor(pool: any) {
@@ -365,9 +381,27 @@ async function bootstrap(): Promise<Database> {
     const db = new PgDatabase(pool);
     // Schema and policy DDL predate any user, so it runs in system context.
     await runAsSystem(async () => {
-      await db.run("CREATE EXTENSION IF NOT EXISTS vector");
-      for (const stmt of splitStatements(SCHEMA_SQL)) await db.run(stmt);
-      
+      // pgvector is optional. Neon and most managed Postgres offer it, but a
+      // plain server may not, and it is not worth taking the whole app down
+      // for a feature that degrades to keyword search.
+      let hasVector = false;
+      try {
+        await db.run("CREATE EXTENSION IF NOT EXISTS vector");
+        hasVector = true;
+      } catch (err: any) {
+        console.warn(
+          "[rauell-os] pgvector is unavailable (" +
+            (err?.message?.split("\n")[0] || "unknown error") +
+            "). Embeddings are disabled and knowledge search falls back to " +
+            "keyword matching. Install the extension to enable similarity search."
+        );
+      }
+      db.supportsVectorSearch = hasVector;
+
+      for (const stmt of splitStatements(applyEmbeddingType(SCHEMA_SQL, hasVector))) {
+        await db.run(stmt);
+      }
+
       // Auto-migrate columns (ignoring errors if they already exist)
       const alters = [
         "ALTER TABLE applications ADD COLUMN interview_granted INTEGER DEFAULT 0",
@@ -375,7 +409,10 @@ async function bootstrap(): Promise<Database> {
         "ALTER TABLE leads ADD COLUMN pipeline_value REAL",
         "ALTER TABLE leads ADD COLUMN conversion_stage TEXT",
         "ALTER TABLE opportunities ADD COLUMN fit_score_history_json TEXT DEFAULT '[]'",
-        "ALTER TABLE knowledge_items ADD COLUMN embedding_vector vector(1536)"
+        applyEmbeddingType(
+          "ALTER TABLE knowledge_items ADD COLUMN embedding_vector __EMBEDDING_TYPE__",
+          hasVector
+        ),
       ];
       for (const alter of alters) {
         try { await db.run(alter); } catch (e) {}
@@ -400,7 +437,9 @@ async function bootstrap(): Promise<Database> {
     instance = new SQL.Database();
   }
   const db = new SqlJsDatabase(instance);
-  for (const stmt of splitStatements(SCHEMA_SQL)) await db.run(stmt);
+  for (const stmt of splitStatements(applyEmbeddingType(SCHEMA_SQL, false))) {
+    await db.run(stmt);
+  }
   
   // Auto-migrate columns (ignoring errors if they already exist)
   const alters = [
@@ -409,7 +448,7 @@ async function bootstrap(): Promise<Database> {
     "ALTER TABLE leads ADD COLUMN pipeline_value REAL",
     "ALTER TABLE leads ADD COLUMN conversion_stage TEXT",
     "ALTER TABLE opportunities ADD COLUMN fit_score_history_json TEXT DEFAULT '[]'",
-    "ALTER TABLE knowledge_items ADD COLUMN embedding_vector vector(1536)"
+    "ALTER TABLE knowledge_items ADD COLUMN embedding_vector TEXT",
   ];
   for (const alter of alters) {
     try { await db.run(alter); } catch (e) {}
