@@ -49,6 +49,9 @@ function parse(contents: string): Record<string, string> {
   return out;
 }
 
+/** Env files that were actually found and read, in precedence order. */
+export const loadedEnvFiles: string[] = [];
+
 function loadFile(file: string) {
   const full = path.join(process.cwd(), file);
   if (!fs.existsSync(full)) return;
@@ -56,8 +59,21 @@ function loadFile(file: string) {
   for (const [key, value] of Object.entries(parsed)) {
     if (process.env[key] === undefined) process.env[key] = value;
   }
+  loadedEnvFiles.push(file);
 }
 
 // .env.local first so it takes precedence over .env.
 loadFile(".env.local");
 loadFile(".env");
+
+/** Connection target without the password, safe to print. */
+export function describeDatabaseUrl(): string {
+  const raw = process.env.DATABASE_URL;
+  if (!raw) return "not set";
+  try {
+    const u = new URL(raw);
+    return `${u.protocol}//${u.username ? "***@" : ""}${u.host}${u.pathname}`;
+  } catch {
+    return "set (unparseable)";
+  }
+}
