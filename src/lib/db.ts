@@ -159,8 +159,14 @@ function splitStatements(sql: string): string[] {
 }
 
 function toPg(sql: string): string {
+  // SQLite's LIKE is case-insensitive for ASCII; Postgres's is not. Every LIKE
+  // in this codebase is a substring search where case-insensitive matching is
+  // the intent, so searching "safari" would silently stop matching
+  // "SafariCharge" in production while still working locally. ILIKE restores
+  // the behaviour the queries were written against. Only the exact form
+  // `LIKE ?` is rewritten, so a LIKE inside a string literal is untouched.
   let i = 0;
-  return sql.replace(/\?/g, () => `$${++i}`);
+  return sql.replace(/\bLIKE\s+\?/gi, "ILIKE ?").replace(/\?/g, () => `$${++i}`);
 }
 
 // --- sql.js (SQLite/WASM) backend ------------------------------------------
