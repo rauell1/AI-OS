@@ -245,6 +245,12 @@ declare global {
 async function bootstrap(): Promise<Database> {
   if (isPostgres()) {
     const { default: pg } = await import("pg");
+    // node-postgres returns int8 (bigint) as a string to avoid precision loss,
+    // so COUNT(*) arrives as "0" where SQLite gives 0. "0" is truthy, which
+    // silently inverts every `count ? ... : ...` check in the app. Counts here
+    // are far below Number.MAX_SAFE_INTEGER, so parse them as numbers and keep
+    // both backends returning the same types.
+    pg.types.setTypeParser(pg.types.builtins.INT8, (value: string) => parseInt(value, 10));
     const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
     const db = new PgDatabase(pool);
     for (const stmt of splitStatements(SCHEMA_SQL)) await db.run(stmt);

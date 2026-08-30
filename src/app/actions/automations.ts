@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { newId, nowISO, parseJSON, toJSON, daysUntil } from "@/lib/utils";
+import { newId, nowISO, parseJSON, toJSON, daysUntil, isoDaysFromNow } from "@/lib/utils";
 import { logActivity, notify } from "@/lib/activity";
 import { getDailyBrief } from "@/lib/brief";
 
@@ -63,10 +63,10 @@ export async function executeRule(ruleId: string): Promise<{ actions: number; re
       actions = 1;
     } else if (rule.trigger === "deadline_alerts") {
       const due = await db.query(
-        `SELECT title, deadline FROM applications WHERE user_id = ? AND deadline IS NOT NULL AND deadline <= datetime('now','+7 days') AND status NOT IN ('submitted','offer','rejected','withdrawn','archived')
+        `SELECT title, deadline FROM applications WHERE user_id = ? AND deadline IS NOT NULL AND deadline <= ? AND status NOT IN ('submitted','offer','rejected','withdrawn','archived')
          UNION ALL
-         SELECT title, deadline FROM opportunities WHERE user_id = ? AND deadline IS NOT NULL AND deadline <= datetime('now','+7 days')`,
-        [user.id, user.id]
+         SELECT title, deadline FROM opportunities WHERE user_id = ? AND deadline IS NOT NULL AND deadline <= ?`,
+        [user.id, isoDaysFromNow(7), user.id, isoDaysFromNow(7)]
       );
       for (const d of due) {
         const days = daysUntil(d.deadline);
@@ -76,8 +76,8 @@ export async function executeRule(ruleId: string): Promise<{ actions: number; re
       result = `${actions} deadline alert(s).`;
     } else if (rule.trigger === "followup_reminders") {
       const due = await db.query(
-        `SELECT id, note, due_date FROM followups WHERE user_id = ? AND status = 'pending' AND due_date <= datetime('now','+7 days')`,
-        [user.id]
+        `SELECT id, note, due_date FROM followups WHERE user_id = ? AND status = 'pending' AND due_date <= ?`,
+        [user.id, isoDaysFromNow(7)]
       );
       for (const f of due) {
         await notify(user.id, "followup", "Follow-up due", f.note || "A follow-up is due.", "followup", f.id);
