@@ -45,6 +45,7 @@ export default async function SettingsPage() {
                 <Badge tone={i.status === "connected" ? "success" : i.configured ? "warning" : "neutral"}>{i.status.replace(/_/g, " ")}</Badge>
               </div>
             ))}
+            <a href="/settings/privacy" className="inline-block mt-3 mb-2"><Button size="sm" variant="outline">Manage Privacy & Access</Button></a>
             <p className="text-[11px] text-faint">Gmail/calendar read-only by default. Drive uses selected folders. GitHub is read-only. AI processing of documents requires explicit approval.</p>
           </CardContent>
         </Card>

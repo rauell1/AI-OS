@@ -45,3 +45,25 @@ export async function addEmail(formData: FormData) {
 export async function addEmailForm(fd: FormData): Promise<void> {
   await addEmail(fd);
 }
+
+export async function draftEmailReply(emailId: string, draftedBody: string) {
+  const user = await requireUser();
+  const db = await getDb();
+  
+  // Section 78 & Contradiction 2: Automated drafting must go through Approval Center
+  await db.insert("approvals", {
+    id: newId("apprv"),
+    user_id: user.id,
+    type: "email",
+    proposed_action: "Send email reply",
+    why: "Drafted reply to email",
+    affected_data_json: toJSON({ emailId }),
+    preview: draftedBody,
+    status: "pending",
+    created_at: nowISO(),
+  });
+  
+  await logActivity(user.id, "email_drafted", `Drafted reply for email ${emailId} (pending approval)`, "email", emailId);
+  revalidatePath("/inbox");
+  revalidatePath("/approvals");
+}

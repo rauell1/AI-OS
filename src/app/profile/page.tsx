@@ -15,7 +15,12 @@ export default async function ProfilePage() {
   return (
     <div>
       <PageHeader title="Master Profile" description="A normalized, evidence-linked profile. Editing here updates every generated CV and application."
-        action={<Link href="/settings"><Button size="sm" variant="outline">Edit settings</Button></Link>} />
+        action={
+          <div className="flex gap-2">
+            <Link href="/profile/import"><Button size="sm" variant="primary">Import Data</Button></Link>
+            <Link href="/settings"><Button size="sm" variant="outline">Edit settings</Button></Link>
+          </div>
+        } />
 
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">

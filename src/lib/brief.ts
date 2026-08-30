@@ -155,3 +155,30 @@ function greeting(): string {
   if (h < 18) return "Good afternoon";
   return "Good evening";
 }
+
+export interface WeeklyReview {
+  generatedAt: string;
+  completedTasks: any[];
+  completedApplications: any[];
+  projectUpdates: any[];
+  summary: string;
+}
+
+export async function getWeeklyReview(userId: string): Promise<WeeklyReview> {
+  const db = await getDb();
+  const lastWeek = isoDaysFromNow(-7);
+  
+  const [tasks, apps, projects] = await Promise.all([
+    db.query(`SELECT id, title, updated_at FROM tasks WHERE user_id = ? AND status = 'done' AND updated_at >= ? ORDER BY updated_at DESC`, [userId, lastWeek]),
+    db.query(`SELECT id, title, status FROM applications WHERE user_id = ? AND updated_at >= ? AND status IN ('submitted', 'offer', 'rejected')`, [userId, lastWeek]),
+    db.query(`SELECT id, name, updated_at FROM projects WHERE user_id = ? AND updated_at >= ?`, [userId, lastWeek])
+  ]);
+  
+  return {
+    generatedAt: nowISO(),
+    completedTasks: tasks,
+    completedApplications: apps,
+    projectUpdates: projects,
+    summary: `You completed ${tasks.length} tasks, finalized ${apps.length} applications, and made progress on ${projects.length} projects over the past 7 days.`
+  };
+}

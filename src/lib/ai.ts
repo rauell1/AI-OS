@@ -204,6 +204,10 @@ export async function complete(opts: CompletionOpts): Promise<CompletionResult |
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const result = await callProvider(provider, opts, model);
+      if (result && result.text) {
+        // Strip em-dashes and en-dashes per Section 68 constraints
+        result.text = result.text.replace(/[—–]/g, "-");
+      }
       await logRun(opts, result);
       return result;
     } catch (e: any) {

@@ -355,7 +355,21 @@ async function bootstrap(): Promise<Database> {
     const db = new PgDatabase(pool);
     // Schema and policy DDL predate any user, so it runs in system context.
     await runAsSystem(async () => {
+      await db.run("CREATE EXTENSION IF NOT EXISTS vector");
       for (const stmt of splitStatements(SCHEMA_SQL)) await db.run(stmt);
+      
+      // Auto-migrate columns (ignoring errors if they already exist)
+      const alters = [
+        "ALTER TABLE applications ADD COLUMN interview_granted INTEGER DEFAULT 0",
+        "ALTER TABLE applications ADD COLUMN outcome TEXT",
+        "ALTER TABLE leads ADD COLUMN pipeline_value REAL",
+        "ALTER TABLE leads ADD COLUMN conversion_stage TEXT",
+        "ALTER TABLE opportunities ADD COLUMN fit_score_history_json TEXT DEFAULT '[]'",
+        "ALTER TABLE knowledge_items ADD COLUMN embedding_vector vector(1536)"
+      ];
+      for (const alter of alters) {
+        try { await db.run(alter); } catch (e) {}
+      }
       // Applied after the tables exist, and idempotent: each policy is dropped
       // and recreated, so a changed policy takes effect on the next cold start.
       for (const stmt of splitStatements(RLS_SQL)) await db.run(stmt);
@@ -377,6 +391,20 @@ async function bootstrap(): Promise<Database> {
   }
   const db = new SqlJsDatabase(instance);
   for (const stmt of splitStatements(SCHEMA_SQL)) await db.run(stmt);
+  
+  // Auto-migrate columns (ignoring errors if they already exist)
+  const alters = [
+    "ALTER TABLE applications ADD COLUMN interview_granted INTEGER DEFAULT 0",
+    "ALTER TABLE applications ADD COLUMN outcome TEXT",
+    "ALTER TABLE leads ADD COLUMN pipeline_value REAL",
+    "ALTER TABLE leads ADD COLUMN conversion_stage TEXT",
+    "ALTER TABLE opportunities ADD COLUMN fit_score_history_json TEXT DEFAULT '[]'",
+    "ALTER TABLE knowledge_items ADD COLUMN embedding_vector vector(1536)"
+  ];
+  for (const alter of alters) {
+    try { await db.run(alter); } catch (e) {}
+  }
+  
   await db.run(`INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES (?, ?)`, [
     MIGRATION_NAME,
     new Date().toISOString(),

@@ -141,6 +141,16 @@ CREATE TABLE IF NOT EXISTS links (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS opportunity_sources (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  url TEXT,
+  credibility_score REAL DEFAULT 1.0,
+  last_crawled_at TEXT,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS opportunities (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -160,6 +170,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
   structured_json TEXT DEFAULT '{}',
   evidence_json TEXT DEFAULT '[]',
   last_verified TEXT,
+  fit_score_history_json TEXT DEFAULT '[]',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -187,6 +198,8 @@ CREATE TABLE IF NOT EXISTS applications (
   ai_analysis_json TEXT DEFAULT '{}',
   timeline_json TEXT DEFAULT '[]',
   notes TEXT,
+  interview_granted INTEGER DEFAULT 0,
+  outcome TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -365,6 +378,8 @@ CREATE TABLE IF NOT EXISTS leads (
   confidence REAL,
   score REAL,
   status TEXT DEFAULT 'new',
+  pipeline_value REAL,
+  conversion_stage TEXT,
   created_at TEXT NOT NULL
 );
 
@@ -408,6 +423,7 @@ CREATE TABLE IF NOT EXISTS knowledge_items (
   source_type TEXT,
   source_id TEXT,
   embedding_status TEXT DEFAULT 'none',
+  embedding_vector vector(1536),
   created_at TEXT NOT NULL
 );
 

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { AppShell } from "@/components/app-shell";
+import { CommandPalette } from "@/components/command-palette";
 
 export const metadata: Metadata = {
   title: "Rauell OS — Roy's Personal AI Operating System",
@@ -38,7 +39,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        <AppShell user={user} unread={unread} approvals={approvals}>{children}</AppShell>
+        <AppShell user={user} unread={unread} approvals={approvals}>
+          {children}
+        </AppShell>
+        <CommandPalette />
       </body>
     </html>
   );
