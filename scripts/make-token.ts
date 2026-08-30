@@ -1,3 +1,4 @@
+import "./load-env";
 import { getDb } from "../src/lib/db";
 import { SignJWT } from "jose";
 

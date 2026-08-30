@@ -1,0 +1,86 @@
+name: Seed database
+
+# Manual only. This writes to whatever DATABASE_URL points at - which is the
+# production database - so it must never run automatically on push or schedule.
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Re-seed if the account already exists (DELETES its existing seeded data first)"
+        type: boolean
+        default: false
+
+# Never let two seed runs overlap.
+concurrency:
+  group: seed-database
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Check required secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+        run: |
+          missing=0
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is not set."
+            missing=1
+          fi
+          if [ -z "$SEED_PASSWORD" ]; then
+            echo "::error::SEED_PASSWORD secret is not set."
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            echo "Add them under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          # Without a postgres URL the app falls back to an embedded SQLite file
+          # on the runner, which is discarded when the job ends. The seed would
+          # report success while writing nothing to the real database.
+          case "$DATABASE_URL" in
+            postgresql://*|postgres://*) ;;
+            *)
+              echo "::error::DATABASE_URL is not a postgresql:// connection string."
+              echo "Seeding would write to a temporary file on the runner and be lost."
+              exit 1
+              ;;
+          esac
+
+      - run: npm ci
+
+      - name: Confirm database connection
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npm run db:migrate
+
+      - name: Seed
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+          SEED_EMAIL: ${{ secrets.SEED_EMAIL }}
+          SEED_NAME: ${{ secrets.SEED_NAME }}
+          SEED_FORCE: ${{ inputs.force && '1' || '' }}
+        run: npm run db:seed
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Seed run"
+            echo ""
+            echo "- Force re-seed: \`${{ inputs.force }}\`"
+            echo "- Result: \`${{ job.status }}\`"
+            echo ""
+            echo "Sign in with the email in \`SEED_EMAIL\` (default \`roy@rauell.systems\`)"
+            echo "and the password stored in the \`SEED_PASSWORD\` secret."
+          } >> "$GITHUB_STEP_SUMMARY"

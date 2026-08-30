@@ -1,3 +1,4 @@
+import "./load-env";
 import { getDb } from "../src/lib/db";
 import { SEED } from "../src/lib/seed-data";
 
