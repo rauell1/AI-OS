@@ -8,11 +8,13 @@ import { CreateAutomation, AutomationRow } from "@/components/automation-control
 export default async function AutomationsPage() {
   const user = await requireUser();
   const db = await getDb();
-  const rules = await db.query(`SELECT * FROM automation_rules WHERE user_id = ? ORDER BY created_at DESC`, [user.id]);
-  const runs = await db.query(
-    `SELECT r.*, a.name AS rule_name FROM automation_runs r JOIN automation_rules a ON a.id = r.rule_id WHERE a.user_id = ? ORDER BY r.started_at DESC LIMIT 12`,
-    [user.id]
-  );
+  const [rules, runs] = await Promise.all([
+    db.query(`SELECT * FROM automation_rules WHERE user_id = ? ORDER BY created_at DESC`, [user.id]),
+    db.query(
+      `SELECT r.*, a.name AS rule_name FROM automation_runs r JOIN automation_rules a ON a.id = r.rule_id WHERE a.user_id = ? ORDER BY r.started_at DESC LIMIT 12`,
+      [user.id]
+    ),
+  ]);
 
   return (
     <div>

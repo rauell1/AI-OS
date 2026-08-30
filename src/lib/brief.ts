@@ -49,20 +49,23 @@ export interface DeadlineItem {
 export async function getUpcomingDeadlines(userId: string, days = 30): Promise<DeadlineItem[]> {
   const db = await getDb();
   const items: DeadlineItem[] = [];
-  const apps = await db.query(
-    `SELECT id, title, deadline, status FROM applications WHERE user_id = ? AND deadline IS NOT NULL AND deadline <= ? ORDER BY deadline ASC`,
-    [userId, isoDaysFromNow(days)]
-  );
+  const deadline = isoDaysFromNow(days);
+  const [apps, opps, tasks] = await Promise.all([
+    db.query(
+      `SELECT id, title, deadline, status FROM applications WHERE user_id = ? AND deadline IS NOT NULL AND deadline <= ? ORDER BY deadline ASC`,
+      [userId, deadline]
+    ),
+    db.query(
+      `SELECT id, title, deadline, type FROM opportunities WHERE user_id = ? AND deadline IS NOT NULL AND deadline <= ? ORDER BY deadline ASC`,
+      [userId, deadline]
+    ),
+    db.query(
+      `SELECT id, title, due_date, priority FROM tasks WHERE user_id = ? AND status NOT IN ('done','cancelled') AND due_date IS NOT NULL AND due_date <= ? ORDER BY due_date ASC`,
+      [userId, deadline]
+    ),
+  ]);
   for (const a of apps) items.push({ id: a.id, title: a.title, type: "application", due: a.deadline, days: daysUntil(a.deadline), meta: a.status });
-  const opps = await db.query(
-    `SELECT id, title, deadline, type FROM opportunities WHERE user_id = ? AND deadline IS NOT NULL AND deadline <= ? ORDER BY deadline ASC`,
-    [userId, isoDaysFromNow(days)]
-  );
   for (const o of opps) items.push({ id: o.id, title: o.title, type: o.type, due: o.deadline, days: daysUntil(o.deadline) });
-  const tasks = await db.query(
-    `SELECT id, title, due_date, priority FROM tasks WHERE user_id = ? AND status NOT IN ('done','cancelled') AND due_date IS NOT NULL AND due_date <= ? ORDER BY due_date ASC`,
-    [userId, isoDaysFromNow(days)]
-  );
   for (const t of tasks) items.push({ id: t.id, title: t.title, type: "task", due: t.due_date, days: daysUntil(t.due_date), meta: `P${t.priority}` });
   items.sort((a, b) => (a.days ?? 999) - (b.days ?? 999));
   return items;

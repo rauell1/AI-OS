@@ -15,21 +15,24 @@ export default async function TasksPage({ searchParams }: { searchParams: { stat
   const status = searchParams.status && searchParams.status !== "all" ? searchParams.status : null;
   const db = await getDb();
   const sql = `SELECT * FROM tasks WHERE user_id = ? ${status ? "AND status = ?" : ""} ORDER BY (due_date IS NULL), due_date ASC, priority DESC`;
-  const tasks = await db.query(sql, status ? [user.id, status] : [user.id]);
-
-  const counts: Record<string, number> = {};
-  for (const f of FILTERS) {
-    const c = await db.get<{ c: number }>(
-      `SELECT COUNT(*) c FROM tasks WHERE user_id = ? ${f === "all" ? "" : "AND status = ?"}`,
-      f === "all" ? [user.id] : [user.id, f]
-    );
-    counts[f] = c?.c || 0;
+  const [tasks, countRows, projects] = await Promise.all([
+    db.query(sql, status ? [user.id, status] : [user.id]),
+    db.query<{ status: string; c: number }>(
+      `SELECT status, COUNT(*) c FROM tasks WHERE user_id = ? GROUP BY status`,
+      [user.id]
+    ),
+    db.query<{ id: string; name: string }>(`SELECT id, name FROM projects WHERE user_id = ?`, [user.id]),
+  ]);
+  const counts: Record<string, number> = Object.fromEntries(FILTERS.map((filter) => [filter, 0]));
+  for (const row of countRows) {
+    counts[row.status] = row.c;
+    counts.all += row.c;
   }
 
   return (
     <div>
       <PageHeader title="Tasks" description="Unified task system across projects, email, applications and AI recommendations."
-        action={<TaskFormDialog projects={await db.query<{ id: string; name: string }>(`SELECT id, name FROM projects WHERE user_id = ?`, [user.id])} />} />
+        action={<TaskFormDialog projects={projects} />} />
 
       <div className="mb-4 flex flex-wrap gap-2">
         {FILTERS.map((f) => (

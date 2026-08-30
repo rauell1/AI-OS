@@ -363,9 +363,25 @@ class PgDatabase implements Database {
 }
 
 // --- Singleton bootstrap ---------------------------------------------------
-declare global {
-  // eslint-disable-next-line no-var
-  var __RAUELL_DB__: Promise<Database> | undefined;
+// Keep the promise on Node's process object under a registry symbol. Both the
+// object and key survive Next.js development module invalidation.
+const DB_CACHE_KEY = Symbol.for("rauell-os.database.promise");
+type DbProcess = typeof process & { [DB_CACHE_KEY]?: Promise<Database> };
+const dbProcess = process as DbProcess;
+const SQLITE_BOOTSTRAP_MIGRATION = `${MIGRATION_NAME}_sqlite_bootstrap_v2`;
+
+async function sqliteSchemaIsCurrent(instance: any): Promise<boolean> {
+  const table = instance.exec(
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_migrations' LIMIT 1"
+  );
+  if (!table.length) return false;
+  const stmt = instance.prepare("SELECT 1 FROM _migrations WHERE name = ? LIMIT 1");
+  try {
+    stmt.bind([SQLITE_BOOTSTRAP_MIGRATION]);
+    return stmt.step();
+  } finally {
+    stmt.free();
+  }
 }
 
 async function bootstrap(): Promise<Database> {
@@ -437,6 +453,8 @@ async function bootstrap(): Promise<Database> {
     instance = new SQL.Database();
   }
   const db = new SqlJsDatabase(instance);
+  if (await sqliteSchemaIsCurrent(instance)) return db;
+
   for (const stmt of splitStatements(applyEmbeddingType(SCHEMA_SQL, false))) {
     await db.run(stmt);
   }
@@ -455,7 +473,7 @@ async function bootstrap(): Promise<Database> {
   }
   
   await db.run(`INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES (?, ?)`, [
-    MIGRATION_NAME,
+    SQLITE_BOOTSTRAP_MIGRATION,
     new Date().toISOString(),
   ]);
   db.persist();
@@ -463,10 +481,16 @@ async function bootstrap(): Promise<Database> {
 }
 
 export function getDb(): Promise<Database> {
-  if (!globalThis.__RAUELL_DB__) {
-    globalThis.__RAUELL_DB__ = bootstrap();
+  if (!dbProcess[DB_CACHE_KEY]) {
+    const pending = bootstrap();
+    dbProcess[DB_CACHE_KEY] = pending;
+    // A failed bootstrap must be retryable after the underlying problem is
+    // corrected; never leave a rejected promise pinned for the process life.
+    void pending.catch(() => {
+      if (dbProcess[DB_CACHE_KEY] === pending) delete dbProcess[DB_CACHE_KEY];
+    });
   }
-  return globalThis.__RAUELL_DB__;
+  return dbProcess[DB_CACHE_KEY]!;
 }
 
 // Force a disk flush for the embedded backend (used after bulk operations).

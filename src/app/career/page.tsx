@@ -6,11 +6,11 @@ export default async function CareerRoadmap() {
   const user = await requireUser();
   const db = await getDb();
   
-  const goals = await db.query(`SELECT title, description FROM goals WHERE user_id = ? AND status = 'active'`, [user.id]);
-  const skills = await db.query(`SELECT name, proficiency FROM skills WHERE user_id = ?`, [user.id]);
-  
-  // Basic skill gap logic (in real life, AI infers this from opps)
-  const allOpps = await db.query(`SELECT structured_json FROM opportunities WHERE user_id = ?`, [user.id]);
+  const [goals, skills, allOpps] = await Promise.all([
+    db.query(`SELECT title, description FROM goals WHERE user_id = ? AND status = 'active'`, [user.id]),
+    db.query(`SELECT name, proficiency FROM skills WHERE user_id = ?`, [user.id]),
+    db.query(`SELECT structured_json FROM opportunities WHERE user_id = ?`, [user.id]),
+  ]);
   
   const requiredSkills = new Map<string, number>();
   for (const o of allOpps) {

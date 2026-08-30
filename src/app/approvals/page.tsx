@@ -7,8 +7,10 @@ import { ApprovalCard } from "@/components/approval-controls";
 export default async function ApprovalsPage() {
   const user = await requireUser();
   const db = await getDb();
-  const pending = await db.query(`SELECT * FROM approvals WHERE user_id = ? AND status = 'pending' ORDER BY created_at DESC`, [user.id]);
-  const resolved = await db.query(`SELECT * FROM approvals WHERE user_id = ? AND status != 'pending' ORDER BY resolved_at DESC LIMIT 20`, [user.id]);
+  const [pending, resolved] = await Promise.all([
+    db.query(`SELECT * FROM approvals WHERE user_id = ? AND status = 'pending' ORDER BY created_at DESC`, [user.id]),
+    db.query(`SELECT * FROM approvals WHERE user_id = ? AND status != 'pending' ORDER BY resolved_at DESC LIMIT 20`, [user.id]),
+  ]);
 
   return (
     <div>

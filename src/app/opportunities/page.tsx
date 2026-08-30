@@ -16,9 +16,10 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
   const sql = `SELECT o.*, s.overall, s.recommendation FROM opportunities o
     LEFT JOIN opportunity_scores s ON s.opportunity_id = o.id
     WHERE o.user_id = ? ${type ? "AND o.type = ?" : ""} ORDER BY s.overall DESC NULLS LAST, o.created_at DESC`;
-  const opps = await db.query(sql, type ? [user.id, type] : [user.id]);
-
-  const orgs = await db.query<{ id: string; name: string }>(`SELECT id, name FROM organizations WHERE user_id = ?`, [user.id]);
+  const [opps, orgs] = await Promise.all([
+    db.query(sql, type ? [user.id, type] : [user.id]),
+    db.query<{ id: string; name: string }>(`SELECT id, name FROM organizations WHERE user_id = ?`, [user.id]),
+  ]);
 
   return (
     <div>
