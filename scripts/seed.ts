@@ -1,3 +1,4 @@
+import "./load-env";
 import { getDb } from "../src/lib/db";
 import { newId, nowISO, toJSON, parseJSON } from "../src/lib/utils";
 import { SEED } from "../src/lib/seed-data";
