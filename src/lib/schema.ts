@@ -10,6 +10,9 @@
 //   * Dates and timestamps are ISO TEXT.
 //   * JSON / JSONB are stored as TEXT and parsed in application code.
 //   * Foreign keys and indexes are declared; they are enforced by both engines.
+//   * __EMBEDDING_TYPE__ is substituted at bootstrap: vector(1536) when the
+//     pgvector extension is available, TEXT otherwise (and always on SQLite).
+//     See EMBEDDING_TYPE_TOKEN in db.ts.
 
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
@@ -423,7 +426,7 @@ CREATE TABLE IF NOT EXISTS knowledge_items (
   source_type TEXT,
   source_id TEXT,
   embedding_status TEXT DEFAULT 'none',
-  embedding_vector vector(1536),
+  embedding_vector __EMBEDDING_TYPE__,
   created_at TEXT NOT NULL
 );
 
