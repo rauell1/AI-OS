@@ -1,7 +1,7 @@
 import { getDb } from "./db";
 import { newId, nowISO } from "./utils";
 
-export type AIProviderName = "openai" | "anthropic" | "gemini";
+export type AIProviderName = "openai" | "anthropic" | "gemini" | "nvidia";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -31,14 +31,15 @@ export interface CompletionResult {
 
 export function aiEnabled(): boolean {
   return Boolean(
-    process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY
+    process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY || process.env.NVIDIA_API_KEY
   );
 }
 
 function resolveProvider(requested?: AIProviderName): AIProviderName | null {
   if (requested && providerKey(requested)) return requested;
-  const def = (process.env.AI_DEFAULT_PROVIDER as AIProviderName) || "openai";
+  const def = (process.env.AI_DEFAULT_PROVIDER as AIProviderName) || "nvidia";
   if (providerKey(def)) return def;
+  if (providerKey("nvidia")) return "nvidia";
   if (providerKey("openai")) return "openai";
   if (providerKey("anthropic")) return "anthropic";
   if (providerKey("gemini")) return "gemini";
@@ -46,19 +47,17 @@ function resolveProvider(requested?: AIProviderName): AIProviderName | null {
 }
 
 function providerKey(p: AIProviderName): string | undefined {
-  return p === "openai"
-    ? process.env.OPENAI_API_KEY
-    : p === "anthropic"
-      ? process.env.ANTHROPIC_API_KEY
-      : process.env.GEMINI_API_KEY;
+  if (p === "nvidia") return process.env.NVIDIA_API_KEY;
+  if (p === "openai") return process.env.OPENAI_API_KEY;
+  if (p === "anthropic") return process.env.ANTHROPIC_API_KEY;
+  return process.env.GEMINI_API_KEY;
 }
 
 function defaultModel(p: AIProviderName): string {
-  return p === "openai"
-    ? process.env.OPENAI_MODEL || "gpt-4o-mini"
-    : p === "anthropic"
-      ? process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest"
-      : process.env.GEMINI_MODEL || "gemini-1.5-flash";
+  if (p === "nvidia") return process.env.NVIDIA_MODEL || "meta/llama-3.1-70b-instruct";
+  if (p === "openai") return process.env.OPENAI_MODEL || "gpt-4o-mini";
+  if (p === "anthropic") return process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
+  return process.env.GEMINI_MODEL || "gemini-1.5-flash";
 }
 
 async function postJson(url: string, headers: Record<string, string>, body: any, timeoutMs = 30000) {
@@ -86,6 +85,29 @@ async function callProvider(
   opts: CompletionOpts,
   model: string
 ): Promise<CompletionResult> {
+  if (provider === "nvidia") {
+    const body: any = {
+      model,
+      messages: [
+        ...(opts.system ? [{ role: "system", content: opts.system }] : []),
+        ...opts.messages,
+      ],
+      temperature: opts.temperature ?? 0.3,
+      max_tokens: opts.maxTokens ?? 1200,
+    };
+    if (opts.json) body.response_format = { type: "json_object" };
+    const data = await postJson("https://integrate.api.nvidia.com/v1/chat/completions", {
+      Authorization: `Bearer ${providerKey("nvidia")}`,
+    }, body);
+    return {
+      text: data.choices?.[0]?.message?.content || "",
+      model,
+      provider,
+      tokens: data.usage?.total_tokens,
+      cost: 0, // NVIDIA NIM is explicitly tracked as free
+    };
+  }
+
   if (provider === "openai") {
     const body: any = {
       model,
@@ -97,7 +119,8 @@ async function callProvider(
       max_tokens: opts.maxTokens ?? 1200,
     };
     if (opts.json) body.response_format = { type: "json_object" };
-    const data = await postJson("https://api.openai.com/v1/chat/completions", {
+    const baseUrl = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+    const data = await postJson(`${baseUrl}/chat/completions`, {
       Authorization: `Bearer ${providerKey("openai")}`,
     }, body);
     return {
@@ -200,7 +223,7 @@ export async function complete(opts: CompletionOpts): Promise<CompletionResult |
     return null;
   }
   
-  if (opts.userId) {
+  if (opts.userId && provider !== "nvidia") {
     const db = await getDb();
     // Daily cost limit (e.g. $2.00/day)
     const usage = await db.get(`SELECT SUM(cost) as total FROM ai_runs WHERE user_id = ? AND created_at >= date('now', 'start of day')`, [opts.userId]);
