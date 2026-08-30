@@ -23,6 +23,21 @@ async function wipeUser(db: any, email: string) {
 }
 
 async function main() {
+  if (!SEED.user.password) {
+    console.error(
+      "Refusing to seed: SEED_PASSWORD is not set.\n" +
+        "The seed account previously fell back to a password committed to this\n" +
+        "repository, which is a real credential on any reachable deployment.\n\n" +
+        "Run with an explicit secret, e.g.:\n" +
+        "  SEED_PASSWORD='<a strong password>' npm run db:seed\n\n" +
+        "SEED_EMAIL and SEED_NAME can override the seeded identity."
+    );
+    process.exit(1);
+  }
+  if (SEED.user.password.length < 8) {
+    console.error("Refusing to seed: SEED_PASSWORD must be at least 8 characters.");
+    process.exit(1);
+  }
   const db = await getDb();
   const existing = await db.get(`SELECT id FROM users WHERE email = ?`, [SEED.user.email.toLowerCase()]);
   if (existing && !process.env.SEED_FORCE) {

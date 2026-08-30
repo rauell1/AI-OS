@@ -66,7 +66,6 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
             )}
           </p>
         </div>
-        <p className="mt-4 text-center text-xs text-faint">Seeded login: roy@rauell.systems / ChangeMe!Roy2024</p>
       </div>
     </div>
   );
