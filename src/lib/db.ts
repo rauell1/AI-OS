@@ -199,8 +199,15 @@ class SqlJsDatabase implements Database {
   async run(sql: string, params?: any[]): Promise<{ changes: number }> {
     this.db.run(sql, params || []);
     const changes = this.db.getRowsModified();
-    this.persist();
+    this.schedulePersist();
     return { changes };
+  }
+
+  private schedulePersist() {
+    if (this.persistTimer) clearTimeout(this.persistTimer);
+    this.persistTimer = setTimeout(() => {
+      this.persist();
+    }, 50);
   }
 
   async insert(table: string, row: Record<string, any>): Promise<string> {
@@ -225,14 +232,11 @@ class SqlJsDatabase implements Database {
     await this.run(`DELETE FROM ${table} WHERE id = ?`, [id]);
   }
 
-  persist() {
-    // Every run() persists, so a write failure here would surface as a 500 on
-    // any page that touches the database. Keep serving from the in-memory
-    // instance instead and report the loss of durability once.
+  async persist() {
     try {
       if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
       const data = this.db.export();
-      fs.writeFileSync(DB_FILE, Buffer.from(data));
+      await fs.promises.writeFile(DB_FILE, Buffer.from(data));
     } catch (err: any) {
       if (!SqlJsDatabase.persistWarned) {
         SqlJsDatabase.persistWarned = true;
