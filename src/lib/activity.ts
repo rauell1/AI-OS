@@ -1,67 +1,96 @@
-import "server-only";
-import { prisma } from "@/lib/db";
-import type { Actor } from "@/generated/prisma/client";
+import { getDb } from "./db";
+import { newId, nowISO, toJSON } from "./utils";
 
-export type ActivityType =
-  | "OPPORTUNITY_DISCOVERED"
-  | "OPPORTUNITY_SHORTLISTED"
-  | "OPPORTUNITY_SKIPPED"
-  | "APPLICATION_CREATED"
-  | "APPLICATION_STATUS_CHANGED"
-  | "APPLICATION_SUBMITTED"
-  | "CV_GENERATED"
-  | "COVER_LETTER_GENERATED"
-  | "TASK_CREATED"
-  | "TASK_COMPLETED"
-  | "EMAIL_IMPORTED"
-  | "EMAIL_CLASSIFIED"
-  | "DOCUMENT_UPLOADED"
-  | "CONTACT_CREATED"
-  | "ORGANIZATION_CREATED"
-  | "LEAD_CREATED"
-  | "MEETING_LOGGED"
-  | "MEETING_OCCURRED"
-  | "PROJECT_UPDATED"
-  | "REPOSITORY_SYNCED"
-  | "AI_RECOMMENDATION"
-  | "BRIEF_GENERATED"
-  | "AUTOMATION_RAN"
-  | "APPROVAL_REQUESTED"
-  | "APPROVAL_DECIDED"
-  | "DECISION_RECORDED"
-  | "GOAL_UPDATED"
-  | "NOTE_CREATED"
-  | "INTEGRATION_CONNECTED"
-  | "INTEGRATION_DISCONNECTED"
-  | "LOGIN"
-  | "LOGOUT"
-  | "SETUP"
-  | "DATA_EXPORTED"
-  | "PROFILE_UPDATED";
+export async function logActivity(
+  userId: string,
+  type: string,
+  summary: string,
+  entityType?: string | null,
+  entityId?: string | null,
+  metadata?: Record<string, any>
+) {
+  const db = await getDb();
+  await db.insert("activity_events", {
+    id: newId("act"),
+    user_id: userId,
+    type,
+    summary,
+    entity_type: entityType || null,
+    entity_id: entityId || null,
+    metadata_json: toJSON(metadata || {}),
+    created_at: nowISO(),
+  });
+}
 
-/** Append an immutable activity event. Never throws into caller flows. */
-export async function recordActivity(opts: {
+export async function notify(
+  userId: string,
+  type: string,
+  title: string,
+  body?: string | null,
+  entityType?: string | null,
+  entityId?: string | null
+) {
+  const db = await getDb();
+  await db.insert("notifications", {
+    id: newId("ntf"),
+    user_id: userId,
+    type,
+    title,
+    body: body || null,
+    entity_type: entityType || null,
+    entity_id: entityId || null,
+    read: 0,
+    created_at: nowISO(),
+  });
+}
+
+export async function recordAudit(
+  userId: string | undefined,
+  action: string,
+  entityType?: string | null,
+  entityId?: string | null,
+  meta?: Record<string, any>
+) {
+  const db = await getDb();
+  await db.insert("audit_logs", {
+    id: newId("aud"),
+    user_id: userId || null,
+    action,
+    entity_type: entityType || null,
+    entity_id: entityId || null,
+    meta_json: toJSON(meta || {}),
+    created_at: nowISO(),
+  });
+}
+
+export interface ApprovalInput {
   userId: string;
-  type: ActivityType;
-  summary: string;
-  actor?: Actor;
-  refType?: string;
-  refId?: string;
-  meta?: Record<string, unknown>;
-}): Promise<void> {
-  try {
-    await prisma.activityEvent.create({
-      data: {
-        userId: opts.userId,
-        type: opts.type,
-        summary: opts.summary,
-        actor: opts.actor ?? "USER",
-        refType: opts.refType,
-        refId: opts.refId,
-        meta: (opts.meta ?? undefined) as never,
-      },
-    });
-  } catch (err) {
-    console.error("[activity] failed to record", opts.type, err);
-  }
+  type: string;
+  proposedAction: string;
+  why?: string;
+  affectedData?: Record<string, any>;
+  aiReasoning?: string;
+  preview?: string;
+  entityType?: string;
+  entityId?: string;
+}
+
+export async function createApproval(input: ApprovalInput): Promise<string> {
+  const db = await getDb();
+  const id = newId("apr");
+  await db.insert("approvals", {
+    id,
+    user_id: input.userId,
+    type: input.type,
+    proposed_action: input.proposedAction,
+    why: input.why || null,
+    affected_data_json: toJSON(input.affectedData || {}),
+    ai_reasoning: input.aiReasoning || null,
+    preview: input.preview || null,
+    status: "pending",
+    created_at: nowISO(),
+    resolved_at: null,
+  });
+  await notify(input.userId, "approval", "Action awaiting your approval", input.proposedAction, input.entityType, input.entityId);
+  return id;
 }
