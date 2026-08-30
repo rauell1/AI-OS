@@ -4,9 +4,13 @@
 
 export const SEED = {
   user: {
-    email: "roy@rauell.systems",
-    name: "Roy Okola Otieno",
-    password: process.env.SEED_PASSWORD || "ChangeMe!Roy2024",
+    email: process.env.SEED_EMAIL || "roy@rauell.systems",
+    name: process.env.SEED_NAME || "Roy Okola Otieno",
+    // No default. A checked-in password becomes a real credential the moment
+    // anyone runs the seed against a reachable deployment, so the seed script
+    // requires SEED_PASSWORD to be supplied explicitly and refuses to run
+    // without it.
+    password: process.env.SEED_PASSWORD || "",
   },
   profile: {
     headline:

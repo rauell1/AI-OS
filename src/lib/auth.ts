@@ -8,9 +8,22 @@ import { newId, nowISO } from "./utils";
 const COOKIE = "rauell_session";
 const ISSUER = "rauell-os";
 
+let secretWarned = false;
+
 function secret(): Uint8Array {
-  const s = process.env.AUTH_SECRET || "dev-insecure-secret-change-me";
-  return new TextEncoder().encode(s);
+  const configured = process.env.AUTH_SECRET;
+  if (!configured && process.env.NODE_ENV === "production" && !secretWarned) {
+    secretWarned = true;
+    // The fallback below is committed to this repository, so anyone who can
+    // read it can mint a valid owner session cookie. Deployments must set
+    // AUTH_SECRET to a long random string.
+    console.error(
+      "[rauell-os] SECURITY: AUTH_SECRET is not set. Session cookies are being signed " +
+        "with the public development fallback, which allows anyone to forge an owner " +
+        "session. Set AUTH_SECRET to a long random value immediately."
+    );
+  }
+  return new TextEncoder().encode(configured || "dev-insecure-secret-change-me");
 }
 
 export interface SessionUser {
