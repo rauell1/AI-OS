@@ -407,6 +407,26 @@ async function bootstrap(): Promise<Database> {
     pg.types.setTypeParser(pg.types.builtins.INT8, (value: string) => parseInt(value, 10));
     const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 20 });
     const db = new PgDatabase(pool);
+    // Check if the schema is already current before running massive DDL
+    let isCurrent = false;
+    try {
+      const row = await db.get(`SELECT 1 FROM _migrations WHERE name = $1 LIMIT 1`, [MIGRATION_NAME]);
+      isCurrent = !!row;
+    } catch {
+      isCurrent = false;
+    }
+
+    if (isCurrent) {
+      // We still need to know if vector is supported to allow embeddings to work
+      try {
+        const row = await db.get(`SELECT 1 FROM pg_extension WHERE extname = 'vector'`);
+        db.supportsVectorSearch = !!row;
+      } catch {
+        db.supportsVectorSearch = false;
+      }
+      return db;
+    }
+
     // Schema and policy DDL predate any user, so it runs in system context.
     await runAsSystem(async () => {
       // pgvector is optional. Neon and most managed Postgres offer it, but a

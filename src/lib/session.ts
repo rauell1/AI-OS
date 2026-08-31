@@ -33,7 +33,9 @@ export function sessionSecret(): Uint8Array {
   return new TextEncoder().encode(configured || "dev-insecure-secret-change-me");
 }
 
-export async function verifySession(token: string | undefined): Promise<SessionUser | null> {
+import { cache } from "react";
+
+export const verifySession = cache(async function verifySession(token: string | undefined): Promise<SessionUser | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, sessionSecret(), { issuer: SESSION_ISSUER });
@@ -47,4 +49,4 @@ export async function verifySession(token: string | undefined): Promise<SessionU
   } catch {
     return null;
   }
-}
+});
