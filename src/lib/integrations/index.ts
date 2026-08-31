@@ -430,6 +430,7 @@ export async function syncIntegration(integrationId: string, userId: string): Pr
   } catch (e: any) {
     errors.push(e?.message || "sync failed");
     await db.update("sync_runs", runId, { status: "error", finished_at: nowISO(), errors_json: toJSON(errors) });
+    result.errors = errors;
   }
   return result;
 }
