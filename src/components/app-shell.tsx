@@ -146,11 +146,11 @@ export function AppShell({ user, unread, approvals, children }: { user: any; unr
         <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface px-4">
           <button className="md:hidden" onClick={() => setMobileOpen(true)}><Menu size={20} /></button>
           <button onClick={() => setPaletteOpen(true)}
-            className="flex flex-1 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-sm text-muted md:max-w-md">
-            <Search size={15} /> <span>Search or run a command…</span>
-            <kbd className="ml-auto hidden rounded border border-border px-1.5 text-[10px] md:inline">⌘K</kbd>
+            className="flex flex-1 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-sm text-muted md:max-w-md min-w-0">
+            <Search size={15} className="shrink-0" /> <span className="truncate text-left">Search or run a command…</span>
+            <kbd className="ml-auto hidden shrink-0 rounded border border-border px-1.5 text-[10px] md:inline">⌘K</kbd>
           </button>
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex shrink-0 items-center gap-1">
             <button onClick={toggleTheme} className="rounded-lg p-2 text-muted hover:bg-surface-2" aria-label="Toggle theme">
               {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
             </button>
