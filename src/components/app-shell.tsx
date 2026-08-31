@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, Input, Avatar, AvatarFallback, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from "@/components/ui";
 import { logout } from "@/app/actions/auth";
+import { Chat } from "@/components/chat";
 
 export const NAV = [
   { href: "/", label: "Command Center", icon: LayoutDashboard },
@@ -37,6 +38,7 @@ export function AppShell({ user, unread, approvals, children }: { user: any; unr
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
+  const [aiOpen, setAiOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [theme, setTheme] = React.useState<"dark" | "light">("light");
 
@@ -205,6 +207,29 @@ export function AppShell({ user, unread, approvals, children }: { user: any; unr
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Global AI Dialog */}
+      <Dialog open={aiOpen} onOpenChange={setAiOpen}>
+        <DialogContent className="max-w-3xl h-[85vh] flex flex-col p-0">
+          <DialogHeader className="px-4 py-3 border-b border-border m-0">
+            <DialogTitle className="flex items-center gap-2 font-semibold">
+              <Bot size={18} className="text-accent" /> AI Assistant
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden p-4">
+            <Chat />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Global AI FAB */}
+      <button 
+        onClick={() => setAiOpen(true)}
+        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-accent/20 transition-transform hover:scale-105 active:scale-95"
+        aria-label="Open AI Assistant"
+      >
+        <Bot size={24} />
+      </button>
     </div>
   );
 }

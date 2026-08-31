@@ -149,7 +149,7 @@ export function Chat() {
   };
 
   return (
-    <div className="flex h-[calc(100dvh-9rem)] min-h-[32rem] flex-col">
+    <div className="flex h-full flex-col">
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pr-1" aria-live="polite">
         {initializing && (
           <div className="flex h-full items-center justify-center gap-2 text-sm text-muted"><Loader2 size={16} className="animate-spin" /> Loading assistant memory…</div>
