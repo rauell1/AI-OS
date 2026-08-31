@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { findUserByEmail, verifyPassword, setSessionCookie, clearSessionCookie, getCurrentUser } from "@/lib/auth";
 import { recordAudit } from "@/lib/activity";
+import { runAsUser } from "@/lib/db";
 import { isOwnerEmail, maskEmail, normalizeEmail, ownerEmail, REGISTRATION_ENABLED } from "@/lib/auth-policy";
 
 const loginSchema = z.object({
@@ -53,7 +54,15 @@ export async function login(prev: { error?: string }, formData: FormData): Promi
     return { error: "Invalid email or password." };
   }
   await setSessionCookie({ id: user.id, email: user.email, name: user.name, role: user.role });
-  await recordAudit(user.id, "auth_login");
+  // Scope explicitly. This runs mid-sign-in, in the same request that just set
+  // the session cookie, so the data layer cannot be relied on to re-derive the
+  // user from that cookie - and an audit row must never be what stops someone
+  // signing in.
+  try {
+    await runAsUser(user.id, () => recordAudit(user.id, "auth_login"));
+  } catch (err: any) {
+    console.error(`[rauell-os] Could not record the sign-in audit entry: ${err?.message || err}. Signing in anyway.`);
+  }
   redirect("/");
 }
 
