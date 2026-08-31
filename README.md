@@ -34,6 +34,7 @@ cp .env.example .env.local
 | :--- | :--- | :--- |
 | `APP_URL` / `NEXT_PUBLIC_APP_URL` | production | Canonical application URL. Production is `https://ai-os.rauell.systems`. |
 | `DATABASE_URL` | production | Pooled PostgreSQL connection string. Unset ⇒ embedded SQLite. |
+| `OWNER_EMAIL` | **always** | The only address allowed to sign in. **Unset means every sign-in is refused** — it locks you out. Not `NEXT_PUBLIC_`, so it stays out of the browser bundle. |
 | `AUTH_SECRET` | production | Signs session JWTs. **Unset falls back to a value committed in this repo**, which anyone can use to forge an owner session. |
 | `CRON_SECRET` | for automations | `/api/automations/run` authenticates with this and refuses to run without it. |
 | `TOKEN_ENCRYPTION_KEY` | for integrations | AES-256-GCM key for integration tokens at rest. Must be base64 of **exactly 32 bytes**, or it silently falls back to a dev key. |

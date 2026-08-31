@@ -6,7 +6,6 @@ import { useSearchParams } from "next/navigation";
 import { Bot, Loader2 } from "lucide-react";
 import { Button, Input, Label } from "@/components/ui";
 import { login } from "@/app/actions/auth";
-import { OWNER_EMAIL } from "@/lib/auth-policy";
 
 export function AuthScreen() {
   const [state, action] = useFormState(login, {});
@@ -45,8 +44,6 @@ export function AuthScreen() {
                 name="email"
                 type="email"
                 required
-                defaultValue={OWNER_EMAIL}
-                readOnly
                 autoComplete="email"
               />
             </div>
