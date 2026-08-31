@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isOwnerEmail, normalizeEmail, ownerEmail, REGISTRATION_ENABLED } from "../src/lib/auth-policy";
+import {
+  isOwnerEmail,
+  maskEmail,
+  normalizeEmail,
+  ownerEmail,
+  REGISTRATION_ENABLED,
+} from "../src/lib/auth-policy";
 
 const OWNER = "owner@example.com";
 
@@ -42,5 +48,24 @@ describe("single-user authentication policy", () => {
 
   it("keeps public registration permanently disabled", () => {
     expect(REGISTRATION_ENABLED).toBe(false);
+  });
+});
+
+describe("maskEmail", () => {
+  it("keeps the first character and the domain", () => {
+    expect(maskEmail("royokola3@gmail.com")).toBe("r********@gmail.com");
+    expect(maskEmail("a@b.com")).toBe("a*@b.com");
+  });
+
+  it("never contains the full local part", () => {
+    const masked = maskEmail("verylongname@example.com");
+    expect(masked).not.toContain("verylongname");
+    expect(masked.endsWith("@example.com")).toBe(true);
+  });
+
+  it("handles input that is not an address", () => {
+    expect(maskEmail("")).toBe("(empty)");
+    expect(maskEmail("   ")).toBe("(empty)");
+    expect(maskEmail("notanemail")).toBe("n***");
   });
 });
