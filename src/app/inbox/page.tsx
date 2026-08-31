@@ -102,7 +102,6 @@ export default async function InboxPage({ searchParams }: { searchParams: { cate
           </CardContent>
         </Card>
       )}
-      </div>
     </div>
   );
 }
