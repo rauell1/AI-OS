@@ -2,9 +2,10 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { findUserByEmail, migrateUserEmail, verifyPassword, setSessionCookie, clearSessionCookie, getCurrentUser } from "@/lib/auth";
+import { findUserByEmail, verifyPassword, setSessionCookie, clearSessionCookie, getCurrentUser } from "@/lib/auth";
 import { recordAudit } from "@/lib/activity";
-import { isOwnerEmail, LEGACY_OWNER_EMAIL, normalizeEmail, REGISTRATION_ENABLED } from "@/lib/auth-policy";
+import { runAsUser } from "@/lib/db";
+import { isOwnerEmail, maskEmail, normalizeEmail, ownerEmail, REGISTRATION_ENABLED } from "@/lib/auth-policy";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -18,22 +19,50 @@ export async function login(prev: { error?: string }, formData: FormData): Promi
   });
   if (!parsed.success) return { error: "Enter a valid email and password." };
   const email = normalizeEmail(parsed.data.email);
-  if (!isOwnerEmail(email)) return { error: "Invalid email or password." };
-  let user = await findUserByEmail(email);
-  let legacyAccount = false;
-  if (!user) {
-    user = await findUserByEmail(LEGACY_OWNER_EMAIL);
-    legacyAccount = Boolean(user);
-  }
-  if (!user || !verifyPassword(parsed.data.password, user.password_hash)) {
+
+  // The browser deliberately gets one message for every failure, so it cannot
+  // be used to discover whether an account exists. The three causes are very
+  // different to fix, though, so the server records which one it was.
+  if (!isOwnerEmail(email)) {
+    const configured = ownerEmail();
+    console.warn(
+      `[rauell-os] Sign-in rejected: ${maskEmail(email)} is not the owner. ` +
+        (configured
+          ? `OWNER_EMAIL is ${maskEmail(configured)} - the address entered must match it exactly.`
+          : "OWNER_EMAIL is not set, so no address can match.")
+    );
     return { error: "Invalid email or password." };
   }
-  if (legacyAccount) {
-    await migrateUserEmail(user.id, email);
-    user.email = email;
+
+  const user = await findUserByEmail(email);
+  if (!user) {
+    // OWNER_EMAIL names an account the database does not have. Registration is
+    // permanently disabled, so this cannot be resolved through the UI: either
+    // OWNER_EMAIL or the users row has to change.
+    console.error(
+      `[rauell-os] Sign-in rejected: ${maskEmail(email)} is the configured owner, ` +
+        "but no user row has that email. OWNER_EMAIL and the account in the " +
+        "database disagree; make them match."
+    );
+    return { error: "Invalid email or password." };
+  }
+  if (!verifyPassword(parsed.data.password, user.password_hash)) {
+    console.warn(
+      `[rauell-os] Sign-in rejected: wrong password for ${maskEmail(email)}. ` +
+        "The email and account matched, so only the password is wrong."
+    );
+    return { error: "Invalid email or password." };
   }
   await setSessionCookie({ id: user.id, email: user.email, name: user.name, role: user.role });
-  await recordAudit(user.id, "auth_login");
+  // Scope explicitly. This runs mid-sign-in, in the same request that just set
+  // the session cookie, so the data layer cannot be relied on to re-derive the
+  // user from that cookie - and an audit row must never be what stops someone
+  // signing in.
+  try {
+    await runAsUser(user.id, () => recordAudit(user.id, "auth_login"));
+  } catch (err: any) {
+    console.error(`[rauell-os] Could not record the sign-in audit entry: ${err?.message || err}. Signing in anyway.`);
+  }
   redirect("/");
 }
 

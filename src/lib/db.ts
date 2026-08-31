@@ -52,6 +52,8 @@ export function runAsSystem<R>(fn: () => R): R {
  * call site cannot forget to establish scope - which is the very mistake RLS
  * exists to contain.
  */
+let resolveWarned = false;
+
 async function resolveContext(): Promise<DbContext | undefined> {
   const explicit = dbContext.getStore();
   if (explicit) return explicit;
@@ -62,9 +64,19 @@ async function resolveContext(): Promise<DbContext | undefined> {
     const token = cookies().get(SESSION_COOKIE)?.value;
     const user = await verifySession(token);
     if (user) return { userId: user.id };
-  } catch {
-    // Outside a request scope (scripts, bootstrap). Callers there must wrap
-    // explicitly, and the guard below reports it if they have not.
+  } catch (err: any) {
+    // Outside a request scope (scripts, bootstrap) this is expected, and those
+    // callers wrap explicitly. Inside one it means the cookie lookup itself
+    // failed, which previously surfaced only as the generic "no user context"
+    // error further down - true, but silent about the cause.
+    if (!resolveWarned) {
+      resolveWarned = true;
+      console.warn(
+        `[rauell-os] Could not resolve the current user from the session cookie: ` +
+          `${err?.message || err}. Falling back to no context; callers must wrap ` +
+          `in runAsUser/runAsSystem.`
+      );
+    }
   }
   return undefined;
 }
