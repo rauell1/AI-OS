@@ -4,7 +4,7 @@ import { getDb } from "@/lib/db";
 import { formatDate } from "@/lib/utils";
 import { PageHeader } from "@/components/widgets";
 import { Badge, Button, Card, CardContent, Input, Label, NativeSelect, Textarea } from "@/components/ui";
-import { addEmailForm } from "@/app/actions/email";
+import { addEmailForm, deleteEmailForm } from "@/app/actions/email";
 
 const CATS = ["needs_response", "waiting", "important", "application", "scholarship", "job", "client", "lead", "project", "finance", "newsletter", "reference", "low_priority", "inbox"];
 
@@ -17,10 +17,12 @@ export default async function InboxPage({ searchParams }: { searchParams: { cate
     cat ? [user.id, cat] : [user.id]
   );
 
+  const hasGmail = await db.get(`SELECT 1 FROM integrations WHERE user_id = ? AND provider = 'gmail' AND status = 'connected'`, [user.id]);
+
   return (
     <div>
       <PageHeader title="Inbox" description="Email intelligence: classification, extracted actions, deadlines and follow-ups."
-        action={<Link href="/integrations"><Button size="sm" variant="outline">Connect Gmail</Button></Link>} />
+        action={!hasGmail ? <Link href="/integrations"><Button size="sm" variant="outline">Connect Gmail</Button></Link> : undefined} />
 
       <div className="mb-4 flex flex-wrap gap-2">
         <Link href="/inbox" className={`rounded-full border px-3 py-1 text-xs ${!cat ? "border-accent bg-accent-soft text-accent" : "border-border text-muted"}`}>all</Link>
@@ -34,7 +36,13 @@ export default async function InboxPage({ searchParams }: { searchParams: { cate
           <div key={e.id} className="rounded-lg border border-border p-3">
             <div className="flex items-center justify-between gap-3">
               <p className="truncate text-sm font-medium">{e.subject}</p>
-              <Badge tone="neutral">{e.category}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge tone="neutral">{e.category}</Badge>
+                <form action={deleteEmailForm}>
+                  <input type="hidden" name="id" value={e.id} />
+                  <button className="text-xs text-faint hover:text-danger">Delete</button>
+                </form>
+              </div>
             </div>
             <p className="text-[11px] text-muted">{e.from_name || e.from_addr || "Unknown"} · {formatDate(e.received_at, true)}</p>
             {e.requested_action && <p className="mt-1 text-sm text-muted"><span className="text-faint">Action: </span>{e.requested_action}</p>}
@@ -44,7 +52,11 @@ export default async function InboxPage({ searchParams }: { searchParams: { cate
         {emails.length === 0 && (
           <Card>
             <CardContent className="space-y-3">
-              <p className="text-sm text-muted">No emails captured yet. Connect Gmail in Integrations to import and classify email, or log one manually below.</p>
+              <p className="text-sm text-muted">
+                {hasGmail 
+                  ? "No emails matched this category. Sync from the Integrations page to fetch new emails."
+                  : "No emails captured yet. Connect Gmail in Integrations to import and classify email, or log one manually below."}
+              </p>
               <form action={addEmailForm} className="grid gap-2 rounded-lg border border-border p-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div><Label>From</Label><Input name="from_name" placeholder="Sender name" /></div>

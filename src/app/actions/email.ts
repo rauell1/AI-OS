@@ -67,3 +67,12 @@ export async function draftEmailReply(emailId: string, draftedBody: string) {
   revalidatePath("/inbox");
   revalidatePath("/approvals");
 }
+
+export async function deleteEmailForm(fd: FormData) {
+  const user = await requireUser();
+  const id = String(fd.get("id"));
+  const db = await getDb();
+  await db.del("emails", id);
+  await logActivity(user.id, "email_deleted", "Deleted an email", "email", id);
+  revalidatePath("/inbox");
+}
