@@ -24,7 +24,7 @@ export function AuthScreen() {
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent-fg font-bold">R</div>
+          <img src="/logo.png" alt="Rauell OS" className="h-9 w-9 rounded-lg object-contain" />
           <div>
             <p className="font-semibold leading-tight">Rauell OS</p>
             <p className="text-xs text-muted">Roy&apos;s Personal AI Operating System</p>

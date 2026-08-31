@@ -91,7 +91,7 @@ export function AppShell({ user, unread, approvals, children }: { user: any; unr
       {/* Sidebar (desktop) */}
       <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface md:flex">
         <div className="flex h-14 items-center gap-2 border-b border-border px-4">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-accent-fg text-xs font-bold">R</div>
+          <img src="/logo.png" alt="Rauell OS" className="h-7 w-7 rounded-md object-contain" />
           <span className="font-semibold tracking-tight">Rauell OS</span>
         </div>
         <nav className="flex-1 overflow-y-auto p-2">
@@ -122,7 +122,10 @@ export function AppShell({ user, unread, approvals, children }: { user: any; unr
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
           <aside className="absolute left-0 top-0 h-full w-64 bg-surface p-2 shadow-xl">
             <div className="flex items-center justify-between border-b border-border px-2 py-3">
-              <span className="font-semibold">Rauell OS</span>
+              <div className="flex items-center gap-2">
+                <img src="/logo.png" alt="Rauell OS" className="h-6 w-6 rounded-md object-contain" />
+                <span className="font-semibold">Rauell OS</span>
+              </div>
               <button onClick={() => setMobileOpen(false)}><X size={18} /></button>
             </div>
             <nav className="mt-2 space-y-1">
