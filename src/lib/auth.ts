@@ -79,6 +79,14 @@ export async function findUserByEmail(email: string) {
   });
 }
 
+/** Move a password-verified account from the old seed identity to the owner identity. */
+export async function migrateUserEmail(userId: string, email: string) {
+  return runAsSystem(async () => {
+    const db = await getDb();
+    await db.update("users", userId, { email: email.toLowerCase() });
+  });
+}
+
 export async function findUserById(id: string) {
   return runAsSystem(async () => {
     const db = await getDb();

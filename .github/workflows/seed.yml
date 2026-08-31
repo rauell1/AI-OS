@@ -81,6 +81,6 @@ jobs:
             echo "- Force re-seed: \`${{ inputs.force }}\`"
             echo "- Result: \`${{ job.status }}\`"
             echo ""
-            echo "Sign in with the email in \`SEED_EMAIL\` (default \`roy@rauell.systems\`)"
+            echo "Sign in with the email in \`SEED_EMAIL\` (default \`royokola3@gmail.com\`)"
             echo "and the password stored in the \`SEED_PASSWORD\` secret."
           } >> "$GITHUB_STEP_SUMMARY"

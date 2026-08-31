@@ -2,9 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { findUserByEmail, verifyPassword, setSessionCookie, clearSessionCookie, getCurrentUser } from "@/lib/auth";
+import { findUserByEmail, migrateUserEmail, verifyPassword, setSessionCookie, clearSessionCookie, getCurrentUser } from "@/lib/auth";
 import { recordAudit } from "@/lib/activity";
-import { isOwnerEmail, normalizeEmail, REGISTRATION_ENABLED } from "@/lib/auth-policy";
+import { isOwnerEmail, LEGACY_OWNER_EMAIL, normalizeEmail, REGISTRATION_ENABLED } from "@/lib/auth-policy";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -19,9 +19,18 @@ export async function login(prev: { error?: string }, formData: FormData): Promi
   if (!parsed.success) return { error: "Enter a valid email and password." };
   const email = normalizeEmail(parsed.data.email);
   if (!isOwnerEmail(email)) return { error: "Invalid email or password." };
-  const user = await findUserByEmail(email);
+  let user = await findUserByEmail(email);
+  let legacyAccount = false;
+  if (!user) {
+    user = await findUserByEmail(LEGACY_OWNER_EMAIL);
+    legacyAccount = Boolean(user);
+  }
   if (!user || !verifyPassword(parsed.data.password, user.password_hash)) {
     return { error: "Invalid email or password." };
+  }
+  if (legacyAccount) {
+    await migrateUserEmail(user.id, email);
+    user.email = email;
   }
   await setSessionCookie({ id: user.id, email: user.email, name: user.name, role: user.role });
   await recordAudit(user.id, "auth_login");

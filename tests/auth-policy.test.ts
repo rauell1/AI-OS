@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isOwnerEmail, normalizeEmail, OWNER_EMAIL, REGISTRATION_ENABLED } from "../src/lib/auth-policy";
+import { isOwnerEmail, LEGACY_OWNER_EMAIL, normalizeEmail, OWNER_EMAIL, REGISTRATION_ENABLED } from "../src/lib/auth-policy";
 
 describe("single-user authentication policy", () => {
   it("allows the configured owner email", () => {
@@ -10,6 +10,7 @@ describe("single-user authentication policy", () => {
   it("rejects every other email", () => {
     expect(isOwnerEmail("someone@example.com")).toBe(false);
     expect(isOwnerEmail("royokola3+other@gmail.com")).toBe(false);
+    expect(isOwnerEmail(LEGACY_OWNER_EMAIL)).toBe(false);
   });
 
   it("normalizes email casing and whitespace", () => {

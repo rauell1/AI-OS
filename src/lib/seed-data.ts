@@ -2,9 +2,11 @@
 // hard-coded into business logic). Every fact is marked `user_provided` and is
 // fully editable from the Profile screen. Source: the Rauell OS specification.
 
+import { OWNER_EMAIL } from "./auth-policy";
+
 export const SEED = {
   user: {
-    email: process.env.SEED_EMAIL || "roy@rauell.systems",
+    email: process.env.SEED_EMAIL || OWNER_EMAIL,
     name: process.env.SEED_NAME || "Roy Okola Otieno",
     // No default. A checked-in password becomes a real credential the moment
     // anyone runs the seed against a reachable deployment, so the seed script
