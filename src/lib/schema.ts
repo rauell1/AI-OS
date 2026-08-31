@@ -287,6 +287,7 @@ CREATE TABLE IF NOT EXISTS task_dependencies (
 CREATE TABLE IF NOT EXISTS emails (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
+  source_id TEXT,
   thread_id TEXT,
   from_addr TEXT,
   from_name TEXT,
@@ -347,7 +348,7 @@ CREATE TABLE IF NOT EXISTS documents (
   storage_provider TEXT DEFAULT 'local',
   hash TEXT,
   version INTEGER DEFAULT 1,
-  size_bytes INTEGER,
+  size_bytes BIGINT,
   mime TEXT,
   applications_json TEXT DEFAULT '[]',
   created_at TEXT NOT NULL
@@ -657,4 +658,4 @@ CREATE INDEX IF NOT EXISTS idx_links_user ON links(user_id);
 CREATE INDEX IF NOT EXISTS idx_automation_user ON automation_rules(user_id);
 `;
 
-export const MIGRATION_NAME = "0002_chat_memory_and_domain";
+export const MIGRATION_NAME = "0003_integrations_fix";

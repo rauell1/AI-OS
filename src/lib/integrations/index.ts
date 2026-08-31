@@ -271,6 +271,7 @@ async function syncGmail(userId: string, integrationId: string): Promise<{ impor
     await db.insert("emails", {
       id: newId("eml"),
       user_id: userId,
+      source_id: m.id,
       thread_id: msg.threadId || null,
       from_addr: from,
       from_name: from,

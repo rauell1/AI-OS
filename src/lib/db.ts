@@ -457,6 +457,8 @@ async function bootstrap(): Promise<Database> {
         "ALTER TABLE leads ADD COLUMN pipeline_value REAL",
         "ALTER TABLE leads ADD COLUMN conversion_stage TEXT",
         "ALTER TABLE opportunities ADD COLUMN fit_score_history_json TEXT DEFAULT '[]'",
+        "ALTER TABLE emails ADD COLUMN source_id TEXT",
+        "ALTER TABLE documents ALTER COLUMN size_bytes TYPE BIGINT",
         applyEmbeddingType(
           "ALTER TABLE knowledge_items ADD COLUMN embedding_vector __EMBEDDING_TYPE__",
           hasVector
@@ -499,6 +501,7 @@ async function bootstrap(): Promise<Database> {
     "ALTER TABLE leads ADD COLUMN conversion_stage TEXT",
     "ALTER TABLE opportunities ADD COLUMN fit_score_history_json TEXT DEFAULT '[]'",
     "ALTER TABLE knowledge_items ADD COLUMN embedding_vector TEXT",
+    "ALTER TABLE emails ADD COLUMN source_id TEXT",
   ];
   for (const alter of alters) {
     try { await db.run(alter); } catch (e) {}
