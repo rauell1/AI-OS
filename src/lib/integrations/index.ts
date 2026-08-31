@@ -4,6 +4,7 @@ import { encrypt, decrypt } from "../crypto";
 import { logActivity, notify } from "../activity";
 import { appCallbackUrl, configuredCallbackUrl } from "../app-url";
 import { ownerEmail } from "@/lib/auth-policy";
+import { classifyEmailHeuristic } from "../engines/email";
 
 export type Provider = "gmail" | "calendar" | "drive" | "github";
 
@@ -279,8 +280,8 @@ async function syncGmail(userId: string, integrationId: string): Promise<{ impor
       snippet: msg.snippet || "",
       body_text: "",
       received_at: new Date(get("Date") || Date.now()).toISOString(),
-      category: "inbox",
-      confidence: null,
+      category: classifyEmailHeuristic(subject, msg.snippet || "", from).category,
+      confidence: classifyEmailHeuristic(subject, msg.snippet || "", from).confidence,
       deadline: null,
       requested_action: null,
       sentiment: null,
