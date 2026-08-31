@@ -3,6 +3,7 @@ import { newId, nowISO, toJSON, parseJSON } from "../utils";
 import { encrypt, decrypt } from "../crypto";
 import { logActivity, notify } from "../activity";
 import { appCallbackUrl, configuredCallbackUrl } from "../app-url";
+import { ownerEmail } from "@/lib/auth-policy";
 
 export type Provider = "gmail" | "calendar" | "drive" | "github";
 
@@ -87,7 +88,8 @@ export function buildAuthUrl(provider: Provider, state: string): string | null {
   url.searchParams.set("access_type", "offline");
   url.searchParams.set("include_granted_scopes", "true");
   url.searchParams.set("prompt", "consent");
-  url.searchParams.set("login_hint", "royokola3@gmail.com");
+  const hint = ownerEmail();
+  if (hint) url.searchParams.set("login_hint", hint);
   url.searchParams.set("scope", meta.scopes.join(" "));
   url.searchParams.set("state", `${provider}:${state}`);
   return url.toString();
