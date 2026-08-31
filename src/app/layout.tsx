@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { getDb, runAsUser } from "@/lib/db";
 import { AppShell } from "@/components/app-shell";
+import NextTopLoader from 'nextjs-toploader';
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://ai-os.rauell.systems"),
@@ -54,7 +55,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <head>
           <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         </head>
-        <body>{children}</body>
+        <body>
+          <NextTopLoader color="#14b8a6" showSpinner={false} />
+          {children}
+        </body>
       </html>
     );
   }
@@ -65,6 +69,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
+        <NextTopLoader color="#14b8a6" showSpinner={false} />
         <Suspense fallback={<AppShell user={user} unread={0} approvals={0}>{children}</AppShell>}>
           <AuthenticatedShell user={user}>{children}</AuthenticatedShell>
         </Suspense>
