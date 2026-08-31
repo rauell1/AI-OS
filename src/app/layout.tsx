@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getDb, runAsUser } from "@/lib/db";
 import { AppShell } from "@/components/app-shell";
 import NextTopLoader from 'nextjs-toploader';
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://ai-os.rauell.systems"),
@@ -58,6 +59,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <body>
           <NextTopLoader color="#14b8a6" showSpinner={false} />
           {children}
+          <Analytics />
         </body>
       </html>
     );
@@ -73,6 +75,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Suspense fallback={<AppShell user={user} unread={0} approvals={0}>{children}</AppShell>}>
           <AuthenticatedShell user={user}>{children}</AuthenticatedShell>
         </Suspense>
+        <Analytics />
       </body>
     </html>
   );
