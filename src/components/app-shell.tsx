@@ -38,10 +38,10 @@ export function AppShell({ user, unread, approvals, children }: { user: any; unr
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
-  const [theme, setTheme] = React.useState<"dark" | "light">("dark");
+  const [theme, setTheme] = React.useState<"dark" | "light">("light");
 
   React.useEffect(() => {
-    const t = (localStorage.getItem("theme") as any) || "dark";
+    const t = (localStorage.getItem("theme") as any) || "light";
     setTheme(t);
     document.documentElement.classList.toggle("dark", t === "dark");
   }, []);

@@ -36,41 +36,35 @@ export default async function InboxPage({ searchParams }: { searchParams: { cate
       {emails.length > 0 ? (
         <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
           <div className="divide-y divide-border">
-            {emails.map((e: any) => {
-              const initial = e.from_name ? e.from_name[0] : (e.from_addr ? e.from_addr[0] : "?");
-              return (
-                <div key={e.id} className="group flex gap-4 p-4 transition-colors hover:bg-surface-2/50">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent font-semibold uppercase">
-                    {initial}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-semibold text-fg">{e.from_name || e.from_addr || "Unknown"}</p>
-                      <span className="shrink-0 text-xs text-muted">{formatDate(e.received_at, true)}</span>
-                    </div>
-                    <div className="mt-0.5 flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-medium text-fg">{e.subject}</p>
-                    </div>
-                    {e.snippet && (
-                      <p className="mt-1 line-clamp-2 text-xs text-muted" dangerouslySetInnerHTML={{ __html: e.snippet }} />
-                    )}
-                    
-                    {(e.requested_action || e.deadline || (e.category && e.category !== "inbox")) && (
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {e.category && e.category !== "inbox" && (
-                          <Badge tone={e.category === "needs_response" ? "warning" : "info"}>{e.category.replace(/_/g, " ")}</Badge>
-                        )}
-                        {e.requested_action && (
-                          <Badge tone="accent">Action: {e.requested_action}</Badge>
-                        )}
-                        {e.deadline && (
-                          <Badge tone="danger">Due: {formatDate(e.deadline)}</Badge>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex shrink-0 flex-col items-end justify-start opacity-0 transition-opacity group-hover:opacity-100">
+          {emails.map((e: any) => {
+            const initial = e.from_name ? e.from_name[0] : (e.from_addr ? e.from_addr[0] : "?");
+            return (
+              <div key={e.id} className="group flex items-center gap-4 px-4 py-2 transition-colors hover:bg-surface-2 cursor-pointer">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs text-accent font-bold uppercase">
+                  {initial}
+                </div>
+                
+                <div className="w-48 shrink-0 truncate text-sm font-semibold text-fg">
+                  {e.from_name || e.from_addr || "Unknown"}
+                </div>
+                
+                <div className="min-w-0 flex-1 flex items-center gap-2 truncate text-sm">
+                  {e.category && e.category !== "inbox" && (
+                    <Badge tone={e.category === "needs_response" ? "warning" : "info"} className="shrink-0 h-5 px-1.5 text-[10px]">
+                      {e.category.replace(/_/g, " ")}
+                    </Badge>
+                  )}
+                  {e.requested_action && (
+                    <Badge tone="accent" className="shrink-0 h-5 px-1.5 text-[10px]">Action</Badge>
+                  )}
+                  <span className="font-semibold text-fg truncate">{e.subject}</span>
+                  <span className="text-muted truncate hidden md:inline-block">
+                    - {e.snippet ? e.snippet.replace(/<[^>]+>/g, '') : ""}
+                  </span>
+                </div>
+                
+                <div className="shrink-0 flex items-center gap-2 ml-4">
+                  <div className="hidden group-hover:flex items-center">
                     <form action={deleteEmailForm}>
                       <input type="hidden" name="id" value={e.id} />
                       <button className="rounded p-1.5 text-faint transition-colors hover:bg-danger/10 hover:text-danger" title="Delete email">
@@ -78,10 +72,14 @@ export default async function InboxPage({ searchParams }: { searchParams: { cate
                       </button>
                     </form>
                   </div>
+                  <span className="text-xs font-medium text-muted w-16 text-right group-hover:hidden">
+                    {formatDate(e.received_at, true)}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
+        </div>
         </div>
       ) : (
         <Card>

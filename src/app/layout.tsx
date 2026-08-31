@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-const themeScript = `(function(){try{var t=localStorage.getItem('theme')||'dark';document.documentElement.classList.toggle('dark',t==='dark');}catch(e){document.documentElement.classList.add('dark');}})();`;
+const themeScript = `(function(){try{var t=localStorage.getItem('theme')||'light';document.documentElement.classList.toggle('dark',t==='dark');}catch(e){}})();`;
 
 async function AuthenticatedShell({ user, children }: { user: Awaited<ReturnType<typeof getCurrentUser>> & {}; children: React.ReactNode }) {
   const db = await getDb();
@@ -51,7 +51,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   if (isPublic) {
     return (
-      <html lang="en" className="dark">
+      <html lang="en">
         <head>
           <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         </head>
@@ -64,7 +64,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
