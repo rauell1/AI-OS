@@ -33,20 +33,28 @@ export function sessionSecret(): Uint8Array {
   return new TextEncoder().encode(configured || "dev-insecure-secret-change-me");
 }
 
-import { cache } from "react";
+const sessionCache = new Map<string, SessionUser | null>();
 
-export const verifySession = cache(async function verifySession(token: string | undefined): Promise<SessionUser | null> {
+export async function verifySession(token: string | undefined): Promise<SessionUser | null> {
   if (!token) return null;
+  if (sessionCache.has(token)) return sessionCache.get(token)!;
+  
   try {
     const { payload } = await jwtVerify(token, sessionSecret(), { issuer: SESSION_ISSUER });
-    if (!payload.sub || typeof payload.email !== "string" || !isOwnerEmail(payload.email)) return null;
-    return {
+    if (!payload.sub || typeof payload.email !== "string" || !isOwnerEmail(payload.email)) {
+      sessionCache.set(token, null);
+      return null;
+    }
+    const user = {
       id: payload.sub,
       email: payload.email as string,
       name: payload.name as string,
       role: (payload.role as string) || "owner",
     };
+    sessionCache.set(token, user);
+    return user;
   } catch {
+    sessionCache.set(token, null);
     return null;
   }
-});
+}

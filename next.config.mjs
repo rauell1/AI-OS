@@ -4,7 +4,6 @@ const nextConfig = {
   // sql.js (WASM) and pg must not be bundled/transpiled by Next.
   experimental: {
     serverComponentsExternalPackages: ["sql.js", "pg"],
-    optimizePackageImports: ["lucide-react"],
     // sql.js loads its WASM binary at runtime through a computed path, so
     // Next's static tracing cannot see it and leaves it out of the serverless
     // bundle. Without this the SQLite backend aborts with ENOENT on the first
