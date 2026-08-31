@@ -28,46 +28,41 @@ export function DocumentList({ docs }: { docs: any[] }) {
       </div>
 
       {filtered.length > 0 ? (
-        <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-surface-2 text-xs text-muted border-b border-border">
-              <tr>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Category</th>
-                <th className="px-4 py-3 font-medium">Size</th>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Sensitivity</th>
-                <th className="px-4 py-3 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filtered.map((d) => (
-                <tr key={d.id} className="transition-colors hover:bg-surface-2/50">
-                  <td className="px-4 py-3 font-medium">
-                    <div className="flex items-center gap-2">
-                      <FileText size={15} className="text-muted shrink-0" />
-                      <span className="truncate max-w-[300px]" title={d.name}>{d.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted">{d.category} {d.issuer ? `· ${d.issuer}` : ""}</td>
-                  <td className="px-4 py-3 text-muted">{(d.size_bytes / 1024).toFixed(0)} KB</td>
-                  <td className="px-4 py-3 text-muted">{formatDate(d.created_at)}</td>
-                  <td className="px-4 py-3">
-                    <Badge tone={sensTone[d.sensitivity] || "neutral"}>{d.sensitivity}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-3">
-                      <a href={`/api/documents/${d.id}`} className="text-xs text-accent hover:underline">Open</a>
-                      <form action={deleteDocumentForm}>
-                        <input type="hidden" name="id" value={d.id} />
-                        <button className="text-xs text-faint hover:text-danger">Delete</button>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((d) => (
+            <div key={d.id} className="group relative flex flex-col justify-between rounded-xl border border-border bg-surface p-4 shadow-sm transition-all hover:border-border-strong hover:shadow-md">
+              <div>
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-2">
+                    <FileText size={20} className="text-muted" />
+                  </div>
+                  <Badge tone={sensTone[d.sensitivity] || "neutral"}>{d.sensitivity}</Badge>
+                </div>
+                <h3 className="line-clamp-2 text-sm font-medium text-fg group-hover:text-accent" title={d.name}>
+                  {d.name}
+                </h3>
+                <p className="mt-1 text-xs text-muted">
+                  {d.category === d.issuer ? d.category : `${d.category}${d.issuer ? ` · ${d.issuer}` : ""}`}
+                </p>
+              </div>
+              <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
+                <div className="text-[11px] text-faint">
+                  {d.size_bytes ? `${(d.size_bytes / 1024).toFixed(0)} KB` : "Online file"} · {formatDate(d.created_at)}
+                </div>
+                <div className="flex items-center gap-2">
+                  <form action={deleteDocumentForm}>
+                    <input type="hidden" name="id" value={d.id} />
+                    <button className="rounded p-1.5 text-faint hover:bg-danger/10 hover:text-danger" title="Delete">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                    </button>
+                  </form>
+                  <a href={`/api/documents/${d.id}`} target="_blank" rel="noopener noreferrer" className="rounded bg-accent-soft px-3 py-1 text-xs font-medium text-accent hover:bg-accent hover:text-white transition-colors">
+                    Open
+                  </a>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <Card>
