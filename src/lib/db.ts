@@ -393,7 +393,7 @@ async function bootstrap(): Promise<Database> {
     // are far below Number.MAX_SAFE_INTEGER, so parse them as numbers and keep
     // both backends returning the same types.
     pg.types.setTypeParser(pg.types.builtins.INT8, (value: string) => parseInt(value, 10));
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 20 });
     const db = new PgDatabase(pool);
     // Schema and policy DDL predate any user, so it runs in system context.
     await runAsSystem(async () => {
