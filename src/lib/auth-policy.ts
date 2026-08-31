@@ -37,3 +37,21 @@ export function isOwnerEmail(value: string): boolean {
   if (!owner) return false;
   return normalizeEmail(value) === owner;
 }
+
+/**
+ * Partially redact an address for logging.
+ *
+ * Sign-in failures need to be diagnosable from the logs, but logs get pasted
+ * into issues and chat windows. Keeping the first character and the domain is
+ * enough to spot a wrong account or a typo without writing the full address
+ * down.
+ */
+export function maskEmail(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "(empty)";
+  const at = trimmed.lastIndexOf("@");
+  if (at <= 0) return `${trimmed.slice(0, 1)}***`;
+  const local = trimmed.slice(0, at);
+  const domain = trimmed.slice(at + 1);
+  return `${local.slice(0, 1)}${"*".repeat(Math.max(local.length - 1, 1))}@${domain}`;
+}
