@@ -18,7 +18,21 @@ export function IntegrationCard({ item }: { item: any }) {
     if (!configured || !url) { setError("Provider not configured. Add credentials to .env.local."); return; }
     window.location.href = url;
   };
-  const sync = () => start(async () => { if (item.integrationId) { await syncIntegrationAction(item.integrationId); router.refresh(); } });
+  const sync = () => start(async () => {
+    if (item.integrationId) {
+      try {
+        const result = await syncIntegrationAction(item.integrationId);
+        if (result && result.errors && result.errors.length > 0) {
+          setError(result.errors.join(", "));
+        } else {
+          setError(undefined);
+        }
+      } catch (err: any) {
+        setError(err.message || "Failed to sync.");
+      }
+      router.refresh();
+    }
+  });
   const disconnect = () => start(async () => { if (item.integrationId) { await disconnectIntegrationAction(item.integrationId); router.refresh(); } });
 
   const connected = item.status === "connected";
