@@ -182,7 +182,7 @@ export default async function DashboardPage() {
           </Card>
 
           <Link href="/ai" className="flex items-center gap-2 rounded-xl border border-accent/30 bg-accent-soft p-4 text-sm font-medium text-accent hover:bg-accent/10">
-            <Bot size={16} /> Ask your Chief of Staff
+            <img src="/logo.png" alt="" className="h-4 w-4 object-contain" /> Ask your Chief of Staff
           </Link>
         </div>
       </div>

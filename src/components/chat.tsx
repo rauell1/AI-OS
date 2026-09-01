@@ -156,16 +156,16 @@ export function Chat() {
         )}
         {!initializing && messages.map((message, index) => (
           <div key={message.id || index} className={`flex gap-3 ${message.role === "user" ? "justify-end" : ""}`}>
-            {message.role === "assistant" && <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent"><Bot size={16} /></div>}
+            {message.role === "assistant" && <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent overflow-hidden"><img src="/logo.png" alt="AI" className="h-5 w-5 object-contain" /></div>}
             <div className={`max-w-[86%] rounded-xl border p-3 text-sm sm:max-w-[78%] ${message.role === "user" ? "border-accent/30 bg-accent-soft" : "border-border bg-surface"}`}>
               <p className="whitespace-pre-wrap">{message.content}</p>
               {!!message.attachments?.length && <div className="mt-3 flex flex-wrap gap-2">{message.attachments.map((attachment, i) => <AttachmentCard key={attachment.id || `${attachment.name}-${i}`} attachment={attachment} />)}</div>}
               {message.usedAI === false && <p className="mt-1 text-[10px] text-faint">answered from your data (no AI provider configured)</p>}
             </div>
-            {message.role === "user" && <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted"><User size={16} /></div>}
+            {message.role === "user" && <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted overflow-hidden"><img src="/logo.png" alt="User" className="h-8 w-8 object-cover opacity-50 grayscale" /></div>}
           </div>
         ))}
-        {loading && <div className="flex gap-3"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-soft text-accent"><Bot size={16} /></div><div className="rounded-xl border border-border bg-surface p-3"><Loader2 size={16} className="animate-spin" /></div></div>}
+        {loading && <div className="flex gap-3"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-soft text-accent overflow-hidden"><img src="/logo.png" alt="AI" className="h-5 w-5 object-contain" /></div><div className="rounded-xl border border-border bg-surface p-3"><Loader2 size={16} className="animate-spin" /></div></div>}
       </div>
 
       {!initializing && !messages.some((message) => message.role === "user") && (

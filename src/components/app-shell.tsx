@@ -10,10 +10,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, Input, Avatar, AvatarFallback, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+  Dialog, DialogContent, DialogHeader, DialogTitle, Input, Avatar, AvatarFallback, AvatarImage, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from "@/components/ui";
 import { logout } from "@/app/actions/auth";
 import { Chat } from "@/components/chat";
+
+const LogoIcon = ({ size = 17 }: { size?: number }) => (
+  <img src="/logo.png" alt="" style={{ width: size, height: size }} className="object-contain" />
+);
 
 export const NAV = [
   { href: "/", label: "Command Center", icon: LayoutDashboard },
@@ -24,7 +28,7 @@ export const NAV = [
   { href: "/applications", label: "Applications", icon: FileText },
   { href: "/network", label: "Network", icon: Users },
   { href: "/documents", label: "Documents", icon: Folder },
-  { href: "/ai", label: "AI Assistant", icon: Bot },
+  { href: "/ai", label: "AI Assistant", icon: LogoIcon },
   { href: "/automations", label: "Automations", icon: Workflow },
   { href: "/approvals", label: "Approvals", icon: CheckCheck },
   { href: "/integrations", label: "Integrations", icon: Plug },
@@ -170,7 +174,10 @@ export function AppShell({ user, unread, approvals, children }: { user: any; unr
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="ml-1 flex items-center gap-2 rounded-lg p-1 hover:bg-surface-2">
-                  <Avatar><AvatarFallback className="text-[11px]">{initials(user.name)}</AvatarFallback></Avatar>
+                  <Avatar>
+                    <AvatarImage src="/logo.png" alt="User Profile" />
+                    <AvatarFallback className="text-[11px]">{initials(user.name)}</AvatarFallback>
+                  </Avatar>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -213,7 +220,7 @@ export function AppShell({ user, unread, approvals, children }: { user: any; unr
         <DialogContent className="max-w-3xl h-[85vh] flex flex-col p-0">
           <DialogHeader className="px-4 py-3 border-b border-border m-0">
             <DialogTitle className="flex items-center gap-2 font-semibold">
-              <Bot size={18} className="text-accent" /> AI Assistant
+              <img src="/logo.png" alt="Rauell" className="h-5 w-5 object-contain" /> AI Assistant
             </DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-hidden p-4">
@@ -225,10 +232,10 @@ export function AppShell({ user, unread, approvals, children }: { user: any; unr
       {/* Global AI FAB */}
       <button 
         onClick={() => setAiOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-accent/20 transition-transform hover:scale-105 active:scale-95"
+        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-accent/20 transition-transform hover:scale-105 active:scale-95 overflow-hidden"
         aria-label="Open AI Assistant"
       >
-        <Bot size={24} />
+        <img src="/logo.png" alt="AI" className="h-8 w-8 object-contain brightness-0 invert" />
       </button>
     </div>
   );

@@ -11,6 +11,10 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://ai-os.rauell.systems"),
   title: "Rauell OS — Roy's Personal AI Operating System",
   description: "A unified personal intelligence and productivity platform for Roy Okola Otieno.",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png"
+  }
 };
 
 export const dynamic = "force-dynamic";
