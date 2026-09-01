@@ -48,7 +48,7 @@ export const CHILD_SCOPED: Array<{ table: string; fk: string; parent: string }> 
 ];
 
 /** Tables holding no user-owned rows; reachable only in system context. */
-const SYSTEM_ONLY = ["prompt_versions", "_migrations"];
+const SYSTEM_ONLY = ["prompt_versions", "_migrations", "auth_attempts"];
 
 const IS_SYSTEM = `current_setting('app.system', true) = 'on'`;
 const CURRENT_USER = `current_setting('app.user_id', true)`;

@@ -11,6 +11,17 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://ai-os.rauell.systems"),
   title: "Rauell OS - Roy's Personal AI Operating System",
   description: "A unified personal intelligence and productivity platform for Roy Okola Otieno.",
+  // This is a private, single-account application: registration is disabled and
+  // every route but /login is behind a session. There is nothing here for a
+  // search engine or an AI crawler to index, and the sign-in page carries the
+  // owner's name. Vercel sets noindex on preview URLs automatically but not on
+  // a custom domain, so it is set explicitly here.
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: { index: false, follow: false, noimageindex: true },
+  },
   icons: {
     icon: "/logo.png",
     apple: "/logo.png"

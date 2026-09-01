@@ -24,6 +24,8 @@ export async function middleware(req: NextRequest) {
     pathname === "/api/automations/run" ||
     pathname === "/favicon.ico" ||
     pathname === "/logo.png" ||
+    // A crawler that gets redirected to /login never reads the disallow rules.
+    pathname === "/robots.txt" ||
     pathname.startsWith("/icons")
   ) {
     return NextResponse.next();

@@ -1,10 +1,18 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { findUserByEmail, verifyPassword, setSessionCookie, clearSessionCookie, getCurrentUser } from "@/lib/auth";
 import { recordAudit } from "@/lib/activity";
 import { runAsUser } from "@/lib/db";
+import {
+  callerKey,
+  checkSignInAllowed,
+  clearSignInAttempts,
+  recordFailedSignIn,
+  WINDOW_MINUTES,
+} from "@/lib/rate-limit";
 import { isOwnerEmail, maskEmail, normalizeEmail, ownerEmail, REGISTRATION_ENABLED } from "@/lib/auth-policy";
 
 const loginSchema = z.object({
@@ -20,6 +28,18 @@ export async function login(prev: { error?: string }, formData: FormData): Promi
   if (!parsed.success) return { error: "Enter a valid email and password." };
   const email = normalizeEmail(parsed.data.email);
 
+  // Checked before the password is verified, so a locked-out caller cannot use
+  // the timing of a bcrypt comparison as an oracle either.
+  const caller = callerKey(headers());
+  const limit = await checkSignInAllowed(caller);
+  if (!limit.allowed) {
+    console.warn(
+      `[rauell-os] Sign-in refused: ${limit.recent} failed attempts from this caller in the ` +
+        `last ${WINDOW_MINUTES} minutes. Locked for another ${limit.retryInMinutes} minute(s).`
+    );
+    return { error: `Too many attempts. Try again in ${limit.retryInMinutes} minute(s).` };
+  }
+
   // The browser deliberately gets one message for every failure, so it cannot
   // be used to discover whether an account exists. The three causes are very
   // different to fix, though, so the server records which one it was.
@@ -28,6 +48,7 @@ export async function login(prev: { error?: string }, formData: FormData): Promi
       `[rauell-os] Sign-in rejected: ${maskEmail(email)} is not the owner ` +
         `(${maskEmail(ownerEmail())}). The address entered must match exactly.`
     );
+    await recordFailedSignIn(caller);
     return { error: "Invalid email or password." };
   }
 
@@ -41,6 +62,7 @@ export async function login(prev: { error?: string }, formData: FormData): Promi
         "but no user row has that email. OWNER_EMAIL and the account in the " +
         "database disagree; make them match."
     );
+    await recordFailedSignIn(caller);
     return { error: "Invalid email or password." };
   }
   if (!verifyPassword(parsed.data.password, user.password_hash)) {
@@ -48,8 +70,10 @@ export async function login(prev: { error?: string }, formData: FormData): Promi
       `[rauell-os] Sign-in rejected: wrong password for ${maskEmail(email)}. ` +
         "The email and account matched, so only the password is wrong."
     );
+    await recordFailedSignIn(caller);
     return { error: "Invalid email or password." };
   }
+  await clearSignInAttempts(caller);
   await setSessionCookie({ id: user.id, email: user.email, name: user.name, role: user.role });
   // Scope explicitly. This runs mid-sign-in, in the same request that just set
   // the session cookie, so the data layer cannot be relied on to re-derive the
