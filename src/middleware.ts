@@ -23,6 +23,7 @@ export async function middleware(req: NextRequest) {
     // Scheduled trigger: authenticates itself with CRON_SECRET, not a session.
     pathname === "/api/automations/run" ||
     pathname === "/favicon.ico" ||
+    pathname === "/logo.png" ||
     pathname.startsWith("/icons")
   ) {
     return NextResponse.next();
