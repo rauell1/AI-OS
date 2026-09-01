@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useFormState } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { Bot, Loader2 } from "lucide-react";
@@ -24,7 +25,7 @@ export function AuthScreen() {
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex items-center gap-2">
-          <img src="/logo.png" alt="Rauell OS" className="h-9 w-9 rounded-lg object-contain" />
+          <Image src="/logo.png" alt="Rauell OS" width={36} height={36} className="rounded-lg object-contain" />
           <div>
             <p className="font-semibold leading-tight">Rauell OS</p>
             <p className="text-xs text-muted">Roy&apos;s Personal AI Operating System</p>

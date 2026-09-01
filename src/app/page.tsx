@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Target, FileText, FolderKanban, Users, Bot, AlertTriangle, CheckCheck, ArrowRight } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -182,7 +183,7 @@ export default async function DashboardPage() {
           </Card>
 
           <Link href="/ai" className="flex items-center gap-2 rounded-xl border border-accent/30 bg-accent-soft p-4 text-sm font-medium text-accent hover:bg-accent/10">
-            <img src="/logo.png" alt="" className="h-4 w-4 object-contain" /> Ask your Chief of Staff
+            <Image src="/logo.png" alt="" width={16} height={16} className="object-contain" /> Ask your Chief of Staff
           </Link>
         </div>
       </div>
