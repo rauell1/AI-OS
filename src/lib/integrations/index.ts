@@ -225,11 +225,56 @@ async function googleAccessToken(integrationId: string): Promise<string | null> 
   if (!res.ok || !data.access_token) return null;
   const expiresAt = data.expires_in
     ? new Date(Date.now() + data.expires_in * 1000).toISOString()
-    : null;
+    : new Date(Date.now() + 3500 * 1000).toISOString();
   await db.insert("integration_tokens", {
     id: newId("itk"), integration_id: integrationId, encrypted_token: encrypt(data.access_token),
     kind: "access", expires_at: expiresAt, created_at: nowISO(),
   });
+  await db.update("integrations", integrationId, {
+    token_meta_json: toJSON({ hasRefresh: true, expiresAt }), updated_at: nowISO(),
+  });
+  return data.access_token;
+}
+
+async function githubAccessToken(integrationId: string): Promise<string | null> {
+  const db = await getDb();
+  const accessRow = await db.get(
+    `SELECT encrypted_token, expires_at FROM integration_tokens WHERE integration_id = ? AND kind = 'access' ORDER BY created_at DESC LIMIT 1`,
+    [integrationId]
+  );
+  if (!accessRow) return null;
+  if (!accessRow.expires_at || new Date(accessRow.expires_at).getTime() > Date.now() + 60_000) {
+    try { return decrypt(accessRow.encrypted_token); } catch { return null; }
+  }
+
+  const refresh = await latestToken(integrationId, "refresh");
+  if (!refresh) return null;
+  const res = await fetch(GITHUB_TOKEN, {
+    method: "POST",
+    headers: { "Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: process.env.GITHUB_CLIENT_ID!,
+      client_secret: process.env.GITHUB_CLIENT_SECRET!,
+      refresh_token: refresh,
+      grant_type: "refresh_token",
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.access_token) return null;
+  const expiresAt = data.expires_in
+    ? new Date(Date.now() + data.expires_in * 1000).toISOString()
+    : new Date(Date.now() + 28800 * 1000).toISOString();
+  await db.insert("integration_tokens", {
+    id: newId("itk"), integration_id: integrationId, encrypted_token: encrypt(data.access_token),
+    kind: "access", expires_at: expiresAt, created_at: nowISO(),
+  });
+  // GitHub might return a new refresh token when refreshing
+  if (data.refresh_token) {
+    await db.insert("integration_tokens", {
+      id: newId("itk"), integration_id: integrationId, encrypted_token: encrypt(data.refresh_token),
+      kind: "refresh", expires_at: null, created_at: nowISO(),
+    });
+  }
   await db.update("integrations", integrationId, {
     token_meta_json: toJSON({ hasRefresh: true, expiresAt }), updated_at: nowISO(),
   });
@@ -301,7 +346,7 @@ async function syncGmail(userId: string, integrationId: string): Promise<{ impor
 }
 
 async function syncGithub(userId: string, integrationId: string): Promise<{ imported: number; errors: string[] }> {
-  const token = await latestToken(integrationId, "access");
+  const token = await githubAccessToken(integrationId);
   if (!token) return { imported: 0, errors: ["No access token"] };
   const db = await getDb();
   const res = await fetch(`https://api.github.com/user/repos?per_page=20&sort=updated`, {
