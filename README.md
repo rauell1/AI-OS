@@ -97,6 +97,28 @@ it can never leave the database with no account at all.
 `tests/owner-identity.test.ts` scans every tracked and newly added file and
 fails if any address other than the owner's appears, so this cannot regress.
 
+## Two-factor authentication
+
+Set up from **Settings → Security**. TOTP (RFC 6238), verified against the RFC's
+own published test vectors, so any authenticator app works.
+
+The shared secret is encrypted with `TOKEN_ENCRYPTION_KEY` before it is stored,
+so the database alone does not yield it — which also means **`TOKEN_ENCRYPTION_KEY`
+must not change once enrolled**, or the secret becomes undecryptable and the
+recovery codes are the only way back.
+
+Ten single-use recovery codes are issued at enrolment and shown once. Keep them:
+registration is permanently disabled, so a lost phone without a recovery code is
+a lost account. New codes can be issued at any time, which invalidates the old set.
+
+A code is accepted once — the 30-second step it was used for is recorded, so a
+code seen over a shoulder cannot be reused inside its own window. The second step
+is rate limited separately from the password step.
+
+**Sign out everywhere** bumps a per-account session epoch that every token
+carries, invalidating all existing sessions including the current one. It is the
+only way to revoke a stolen token short of rotating `AUTH_SECRET`.
+
 ## Security
 
 **Row Level Security.** All 45 tables run `ENABLE` + `FORCE ROW LEVEL SECURITY`

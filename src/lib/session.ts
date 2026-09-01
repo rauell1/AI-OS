@@ -14,6 +14,12 @@ export interface SessionUser {
   email: string;
   name: string;
   role: string;
+  /**
+   * The account's session generation at the time this token was issued.
+   * "Sign out everywhere" increments the stored value, which leaves every token
+   * carrying an older number structurally valid but no longer current.
+   */
+  epoch: number;
 }
 
 let secretWarned = false;
@@ -35,6 +41,14 @@ export function sessionSecret(): Uint8Array {
 
 const sessionCache = new Map<string, SessionUser | null>();
 
+/**
+ * Structural check only: signature, issuer, expiry and owner address.
+ *
+ * Deliberately does not touch the database. It runs in edge middleware, which
+ * has no database access, and inside the data layer's own scope resolution -
+ * where a query here would recurse. Whether the session is still *current* is
+ * checked in getCurrentUser, which runs on the server with a database.
+ */
 export async function verifySession(token: string | undefined): Promise<SessionUser | null> {
   if (!token) return null;
   if (sessionCache.has(token)) return sessionCache.get(token)!;
@@ -50,6 +64,7 @@ export async function verifySession(token: string | undefined): Promise<SessionU
       email: payload.email as string,
       name: payload.name as string,
       role: (payload.role as string) || "owner",
+      epoch: typeof payload.epoch === "number" ? payload.epoch : 0,
     };
     sessionCache.set(token, user);
     return user;

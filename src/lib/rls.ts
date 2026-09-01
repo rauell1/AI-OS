@@ -29,7 +29,7 @@ export const USER_SCOPED = [
   "chat_messages", "chat_attachments", "ai_runs",
   "automation_rules", "notifications", "approvals", "activity_events",
   "decisions", "integrations", "audit_logs", "user_preferences", "goals",
-  "opportunity_sources",
+  "opportunity_sources", "user_mfa", "mfa_recovery_codes",
 ];
 
 /** Child tables reached through a parent that carries user_id. */

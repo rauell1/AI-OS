@@ -540,6 +540,7 @@ async function bootstrap(): Promise<Database> {
         "ALTER TABLE opportunities ADD COLUMN fit_score_history_json TEXT DEFAULT '[]'",
         "ALTER TABLE emails ADD COLUMN source_id TEXT",
         "ALTER TABLE documents ALTER COLUMN size_bytes TYPE BIGINT",
+        "ALTER TABLE users ADD COLUMN session_epoch INTEGER DEFAULT 0",
         applyEmbeddingType(
           "ALTER TABLE knowledge_items ADD COLUMN embedding_vector __EMBEDDING_TYPE__",
           hasVector

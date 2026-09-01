@@ -3,7 +3,16 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { findUserByEmail, verifyPassword, setSessionCookie, clearSessionCookie, getCurrentUser } from "@/lib/auth";
+import {
+  clearSessionCookie,
+  currentSessionEpoch,
+  findUserByEmail,
+  getCurrentUser,
+  setSessionCookie,
+  verifyPassword,
+} from "@/lib/auth";
+import { consumeRecoveryCode, mfaRequired, verifyMfaCode } from "@/lib/mfa";
+import { clearPendingMfa, readPendingMfa, startPendingMfa } from "@/lib/mfa-session";
 import { recordAudit } from "@/lib/activity";
 import { runAsUser } from "@/lib/db";
 import {
@@ -20,7 +29,13 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-export async function login(prev: { error?: string }, formData: FormData): Promise<{ error?: string }> {
+export interface LoginState {
+  error?: string;
+  /** The password was right; the browser should now ask for a code. */
+  mfaRequired?: boolean;
+}
+
+export async function login(prev: LoginState, formData: FormData): Promise<LoginState> {
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -73,8 +88,21 @@ export async function login(prev: { error?: string }, formData: FormData): Promi
     await recordFailedSignIn(caller);
     return { error: "Invalid email or password." };
   }
+  // The password is right. If a second factor is enrolled, no session is issued
+  // yet - only a short-lived, signed marker naming who is part-way through.
+  if (await mfaRequired(user.id)) {
+    await startPendingMfa(user.id);
+    return { mfaRequired: true };
+  }
+
   await clearSignInAttempts(caller);
-  await setSessionCookie({ id: user.id, email: user.email, name: user.name, role: user.role });
+  await setSessionCookie({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    epoch: await currentSessionEpoch(user.id),
+  });
   // Scope explicitly. This runs mid-sign-in, in the same request that just set
   // the session cookie, so the data layer cannot be relied on to re-derive the
   // user from that cookie - and an audit row must never be what stops someone
@@ -84,6 +112,77 @@ export async function login(prev: { error?: string }, formData: FormData): Promi
   } catch (err: any) {
     console.error(`[rauell-os] Could not record the sign-in audit entry: ${err?.message || err}. Signing in anyway.`);
   }
+  redirect("/");
+}
+
+/**
+ * The second step. Accepts a code from the authenticator or a recovery code.
+ *
+ * Rate limited separately and more tightly than the password step: six digits
+ * is a million possibilities, which is only a real obstacle if the number of
+ * guesses is small.
+ */
+export async function verifyMfa(prev: LoginState, formData: FormData): Promise<LoginState> {
+  const pending = await readPendingMfa();
+  if (!pending) {
+    return { error: "That took too long. Enter your email and password again." };
+  }
+
+  const caller = `mfa:${callerKey(headers())}`;
+  const limit = await checkSignInAllowed(caller);
+  if (!limit.allowed) {
+    console.warn(
+      `[rauell-os] Second factor refused: ${limit.recent} failed attempts from this caller. ` +
+        `Locked for another ${limit.retryInMinutes} minute(s).`
+    );
+    return { error: `Too many attempts. Try again in ${limit.retryInMinutes} minute(s).`, mfaRequired: true };
+  }
+
+  const submitted = String(formData.get("code") || "").trim();
+  if (!submitted) return { error: "Enter the code from your authenticator.", mfaRequired: true };
+
+  const check = await verifyMfaCode(pending.userId, submitted);
+  let accepted = check === "ok";
+  let usedRecoveryCode = false;
+
+  if (!accepted && check !== "replayed") {
+    // Recovery codes are longer than six digits, so this only runs for input
+    // that was never a plausible authenticator code.
+    accepted = await consumeRecoveryCode(pending.userId, submitted);
+    usedRecoveryCode = accepted;
+  }
+
+  if (!accepted) {
+    await recordFailedSignIn(caller);
+    console.warn(
+      `[rauell-os] Second factor rejected (${check}) for the owner. ` +
+        (check === "replayed" ? "That code was already used." : "Code did not match.")
+    );
+    return {
+      error: check === "replayed" ? "That code has already been used. Wait for the next one." : "That code is not right.",
+      mfaRequired: true,
+    };
+  }
+
+  const user = await findUserByEmail(ownerEmail());
+  if (!user) {
+    console.error("[rauell-os] Second factor passed but the owner row has gone.");
+    return { error: "Something went wrong. Try again." };
+  }
+
+  if (usedRecoveryCode) {
+    console.warn("[rauell-os] Signed in with a RECOVERY CODE. One fewer remains; issue new ones from Settings.");
+  }
+  await clearPendingMfa();
+  await clearSignInAttempts(caller);
+  await clearSignInAttempts(callerKey(headers()));
+  await setSessionCookie({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    epoch: await currentSessionEpoch(user.id),
+  });
   redirect("/");
 }
 

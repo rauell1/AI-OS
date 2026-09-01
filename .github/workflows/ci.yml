@@ -1,0 +1,68 @@
+name: CI
+
+# Runs on every push and pull request. The point is that a regression in the
+# checks that matter — tests, types, the production build, and the rule that no
+# address but the owner's appears in this repository — fails before it merges,
+# rather than being noticed later or never.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # tests/owner-identity.test.ts shells out to `git ls-files`.
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Types
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm run test
+
+      - name: Production build
+        run: npm run build
+        env:
+          # No DATABASE_URL: the build must not need one, and this catches any
+          # change that starts requiring a live database at build time.
+          NODE_ENV: production
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      # Gated at critical for production dependencies only.
+      #
+      # Not "high", though that was the first instinct: the two highs today are
+      # Next 14 and its bundled postcss, and npm's only fix for either is
+      # next@16 - a major upgrade with real migration work behind it
+      # (cookies() and headers() became async in 15, and this codebase uses
+      # both in the auth path). Failing every build on a finding that cannot be
+      # fixed in this repository teaches everyone to ignore the check, which
+      # costs more than it buys. The upgrade is tracked as its own work.
+      - name: Production dependencies (fails on critical)
+        run: npm audit --omit=dev --audit-level=critical
+
+      # Reported, never gating. Dev-only findings do not ship: the last
+      # "critical" here was vitest's UI server, which nothing in production runs.
+      - name: Full report, including dev dependencies
+        if: always()
+        run: npm audit || true
