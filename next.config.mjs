@@ -20,6 +20,31 @@ const nextConfig = {
         headers: [
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "X-Content-Type-Options", value: "nosniff" },
+          // Referrers leak the path, and paths here carry record ids.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Nothing in this application uses these.
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
+          {
+            key: "Content-Security-Policy",
+            // 'unsafe-inline' for scripts is what Next's own bootstrap and the
+            // theme script need without nonce plumbing, so this is not a
+            // defence against injected script - the file-serving allowlist in
+            // src/lib/file-serving.ts is. What it does buy: no plugins, no
+            // <base> rewriting, forms and framing restricted to this origin,
+            // and a fixed list of hosts anything may be fetched from.
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https:",
+              "font-src 'self' data:",
+              "connect-src 'self' https://va.vercel-scripts.com https://vitals.vercel-insights.com",
+              "frame-ancestors 'self'",
+              "form-action 'self'",
+              "base-uri 'self'",
+              "object-src 'none'",
+            ].join("; "),
+          },
         ],
       },
     ];
