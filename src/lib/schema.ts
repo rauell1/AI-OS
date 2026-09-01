@@ -656,6 +656,16 @@ CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_events(user_id);
 CREATE INDEX IF NOT EXISTS idx_approvals_user ON approvals(user_id);
 CREATE INDEX IF NOT EXISTS idx_links_user ON links(user_id);
 CREATE INDEX IF NOT EXISTS idx_automation_user ON automation_rules(user_id);
+
+-- Failed sign-in attempts, for rate limiting. Written before anyone is
+-- authenticated, so it carries no user_id and is reachable only in system
+-- context. Only failures are recorded; a success clears the caller's history.
+CREATE TABLE IF NOT EXISTS auth_attempts (
+  id TEXT PRIMARY KEY,
+  caller TEXT NOT NULL,
+  attempted_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_auth_attempts_caller ON auth_attempts(caller, attempted_at);
 `;
 
 export const MIGRATION_NAME = "0003_integrations_fix";

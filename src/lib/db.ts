@@ -177,7 +177,12 @@ function applyEmbeddingType(sql: string, hasVector: boolean): string {
 }
 
 function splitStatements(sql: string): string[] {
+  // Line comments are stripped before splitting. The split is on ";", so a
+  // semicolon inside a `--` comment would otherwise cut a statement in half and
+  // hand Postgres the remaining prose - which is a syntax error at bootstrap,
+  // i.e. the whole application failing to start because of a comma splice.
   return sql
+    .replace(/--[^\n]*/g, "")
     .split(";")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
