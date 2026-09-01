@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { parseJSON } from "@/lib/utils";
-import { PageHeader, ScoreBar } from "@/components/widgets";
+import { EmptyState, PageHeader, ScoreBar } from "@/components/widgets";
 import { Badge, Card, CardContent } from "@/components/ui";
 import { OpportunityFormDialog } from "@/components/opportunity-form-dialog";
 import { OpportunityRow } from "@/components/opportunity-controls";
@@ -39,7 +39,13 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
         {opps.map((o) => (
           <OpportunityRow key={o.id} opp={o} score={o.overall != null ? { overall: o.overall, recommendation: o.recommendation } : undefined} />
         ))}
-        {opps.length === 0 && <Card><CardContent><p className="text-sm text-muted">No opportunities yet. Add one or connect discovery sources.</p></CardContent></Card>}
+        {opps.length === 0 && (
+          <EmptyState
+            title="No opportunities yet"
+            description="Jobs, scholarships, fellowships and grants land here and get scored against your profile. Add one by hand, or connect a discovery source to have them arrive on their own."
+            action={<Link href="/integrations" className="text-sm text-accent hover:underline">Connect a source</Link>}
+          />
+        )}
       </div>
     </div>
   );

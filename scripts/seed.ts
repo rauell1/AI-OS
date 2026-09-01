@@ -1,9 +1,10 @@
 import "./load-env";
 import { getDb, runAsSystem } from "../src/lib/db";
 import { newId, nowISO, toJSON, parseJSON } from "../src/lib/utils";
-import { SEED } from "../src/lib/seed-data";
+import { SEED, seedTargetEmail } from "../src/lib/seed-data";
 import { hashPassword } from "../src/lib/auth";
 import { scoreJob, scoreScholarship, buildProfileIndex } from "../src/lib/scoring";
+import { USER_SCOPED, CHILD_SCOPED } from "../src/lib/rls";
 
 const DEFAULT_PREFERRED_SECTORS = ["renewable energy", "solar", "ev", "electric mobility", "water", "energy", "climate", "sustainability", "data", "software", "infrastructure"];
 const DEFAULT_PREFERRED_GEOS = ["kenya", "nairobi", "east africa", "europe", "remote"];
@@ -19,61 +20,98 @@ function normalizeFundingType(text?: string): string | undefined {
   return undefined;
 }
 
-async function wipeUser(db: any, email: string) {
-  const u = await db.get(`SELECT id FROM users WHERE email = ?`, [email.toLowerCase()]);
-  if (!u) return;
-  const uid = u.id;
-  const tables = [
-    "activity_events", "notifications", "approvals", "audit_logs", "goals",
-    "projects", "employment", "education", "skills", "skill_evidence",
-    "organizations", "people", "links", "opportunities", "opportunity_scores",
-    "applications", "tasks", "emails", "documents", "references_", "leads",
-    "notes", "knowledge_items", "automation_rules", "user_preferences", "profiles",
-  ];
-  for (const t of tables) {
-    await db.run(`DELETE FROM ${t} WHERE user_id = ?`, [uid]);
+// Clears everything the seed owns for a user, keeping the `users` row itself:
+// the account is the thing you sign in with, and reseeding must not delete it.
+// Driven by the RLS table lists so a new table is covered here automatically.
+async function wipeUserData(db: any, userId: string) {
+  // Children first - they are reached through a parent that carries user_id.
+  for (const { table, fk, parent } of CHILD_SCOPED) {
+    await db.run(
+      `DELETE FROM ${table} WHERE ${fk} IN (SELECT id FROM ${parent} WHERE user_id = ?)`,
+      [userId]
+    );
   }
-  await db.run(`DELETE FROM users WHERE id = ?`, [uid]);
+  for (const table of USER_SCOPED) {
+    await db.run(`DELETE FROM ${table} WHERE user_id = ?`, [userId]);
+  }
+}
+
+function targetEmail(): string {
+  // One account, named in src/lib/auth-policy.ts. Nothing at run time can point
+  // the seed anywhere else.
+  return seedTargetEmail();
+}
+
+// Has this account already been seeded? Checked across a few tables so that a
+// user who has only, say, created a task by hand is not mistaken for a seeded
+// one - and so a reseed does not silently double every row.
+async function existingRowCount(db: any, userId: string): Promise<number> {
+  let total = 0;
+  for (const table of ["projects", "skills", "opportunities", "organizations", "goals"]) {
+    const row = await db.get(`SELECT COUNT(*) AS c FROM ${table} WHERE user_id = ?`, [userId]);
+    total += Number(row?.c) || 0;
+  }
+  return total;
 }
 
 async function main() {
-  if (!SEED.user.password) {
-    console.error(
-      "Refusing to seed: SEED_PASSWORD is not set.\n" +
-        "The seed account previously fell back to a password committed to this\n" +
-        "repository, which is a real credential on any reachable deployment.\n\n" +
-        "Run with an explicit secret, e.g.:\n" +
-        "  SEED_PASSWORD='<a strong password>' npm run db:seed\n\n" +
-        "SEED_EMAIL and SEED_NAME can override the seeded identity."
-    );
-    process.exit(1);
-  }
-  if (SEED.user.password.length < 8) {
-    console.error("Refusing to seed: SEED_PASSWORD must be at least 8 characters.");
-    process.exit(1);
-  }
+  const email = targetEmail();
   const db = await getDb();
-  const existing = await db.get(`SELECT id FROM users WHERE email = ?`, [SEED.user.email.toLowerCase()]);
-  if (existing && !process.env.SEED_FORCE) {
-    console.log(`Seed skipped: user ${SEED.user.email} already exists. Set SEED_FORCE=1 to reseed.`);
-    process.exit(0);
-  }
+  const existing = await db.get<{ id: string }>(`SELECT id FROM users WHERE email = ?`, [email]);
+
+  let userId: string;
   if (existing) {
-    console.log("SEED_FORCE set: wiping existing seed...");
-    await wipeUser(db, SEED.user.email);
+    // The account already exists - almost always the owner, created by signing
+    // up. Attach the seed data to them rather than building a second user whose
+    // rows nobody can see.
+    userId = existing.id;
+    const rows = await existingRowCount(db, userId);
+    if (rows > 0 && !process.env.SEED_FORCE) {
+      console.log(
+        `Seed skipped: ${email} already has ${rows} seeded row(s).\n` +
+          "Set SEED_FORCE=1 to clear this account's data and seed it again."
+      );
+      process.exit(0);
+    }
+    if (rows > 0) {
+      console.log(`SEED_FORCE set: clearing ${rows} existing row(s) for ${email}...`);
+    }
+    // Always clear, even at zero rows: profiles and user_preferences are keyed
+    // by user_id, so a partial previous run would collide on insert.
+    await wipeUserData(db, userId);
+    console.log(`Seeding into the existing account ${email} (id=${userId}).`);
+  } else {
+    // No such account yet, so the seed has to create one - and that needs a
+    // password. It used to fall back to one committed to this repository, which
+    // is a real credential on any reachable deployment.
+    if (!SEED.user.password) {
+      console.error(
+        `Refusing to seed: ${email} has no account yet and SEED_PASSWORD is not set.\n\n` +
+          "Run with an explicit secret, e.g.:\n" +
+          "  SEED_PASSWORD='<a strong password>' npm run db:seed\n\n" +
+          "If the account already exists, no password is needed - check that\n" +
+          "OWNER_EMAIL matches the address you sign in with."
+      );
+      process.exit(1);
+    }
+    if (SEED.user.password.length < 8) {
+      console.error("Refusing to seed: SEED_PASSWORD must be at least 8 characters.");
+      process.exit(1);
+    }
+    userId = newId("usr");
+    await db.insert("users", {
+      id: userId,
+      email,
+      name: SEED.user.name,
+      password_hash: hashPassword(SEED.user.password),
+      role: "owner",
+      timezone: "Africa/Nairobi",
+      settings_json: toJSON({ theme: "dark" }),
+      created_at: nowISO(),
+    });
+    console.log(`Created account ${email} (id=${userId}).`);
   }
 
-  const userId = newId("usr");
-  await db.insert("users", {
-    id: userId,
-    email: SEED.user.email.toLowerCase(),
-    name: SEED.user.name,
-    password_hash: hashPassword(SEED.user.password),
-    role: "owner",
-    timezone: "Africa/Nairobi",
-    settings_json: toJSON({ theme: "dark" }),
-    created_at: nowISO(),
-  });
   await db.insert("profiles", {
     user_id: userId,
     headline: SEED.profile.headline,
@@ -328,9 +366,10 @@ async function main() {
     });
   }
 
-  console.log(`Seeded Rauell OS for ${SEED.user.email} (id=${userId}).`);
-  console.log(`Login password: ${SEED.user.password}`);
-  console.log("Run: npm run dev");
+  console.log(`Seeded Rauell OS for ${email} (id=${userId}).`);
+  if (!existing) {
+    console.log("Sign in with the password you passed as SEED_PASSWORD.");
+  }
   process.exit(0);
 }
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { parseJSON } from "@/lib/utils";
-import { PageHeader } from "@/components/widgets";
+import { EmptyState, PageHeader } from "@/components/widgets";
 import { Badge, Card, CardContent } from "@/components/ui";
 import { TaskFormDialog } from "@/components/task-form-dialog";
 import { TaskRow } from "@/components/task-controls";
@@ -47,7 +47,12 @@ export default async function TasksPage({ searchParams }: { searchParams: { stat
       </div>
 
       <div className="space-y-2">
-        {tasks.length === 0 && <Card><CardContent><p className="text-sm text-muted">No tasks here. Create one with the button above.</p></CardContent></Card>}
+        {tasks.length === 0 && (
+          <EmptyState
+            title="Nothing in this view"
+            description="Tasks arrive from applications, projects and automations, or you can add one directly with the button above."
+          />
+        )}
         {tasks.map((t) => <TaskRow key={t.id} task={t} />)}
       </div>
     </div>

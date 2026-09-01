@@ -4,6 +4,7 @@ import { SignJWT } from "jose";
 import bcrypt from "bcryptjs";
 import { getDb, runAsSystem } from "./db";
 import { newId, nowISO } from "./utils";
+import { isOwnerEmail, maskEmail, ownerEmail } from "./auth-policy";
 import {
   SESSION_COOKIE as COOKIE,
   SESSION_ISSUER as ISSUER,
@@ -102,24 +103,40 @@ export async function userCount(): Promise<number> {
   });
 }
 
+/**
+ * Creates the owner account.
+ *
+ * This application has exactly one account, by design: sign-in is gated to
+ * OWNER_EMAIL and row level security scopes every row to one user id. A second
+ * account cannot sign in, cannot be reached, and only creates a way for the
+ * wrong id to be picked up somewhere - so this refuses to make one rather than
+ * quietly assigning it a "member" role that nothing honours.
+ */
 export async function createUser(email: string, name: string, password: string) {
-  // Registration creates the row that scoping would key on, so it must run as
-  // system. The context also covers the userCount() lookup below.
+  const normalized = email.trim().toLowerCase();
+  if (!isOwnerEmail(normalized)) {
+    console.error(
+      `[rauell-os] Refused to create an account for ${maskEmail(normalized)}: ` +
+        `it is not the owner address. Only ${maskEmail(ownerEmail())} may have an account.`
+    );
+    throw new Error("Only the owner address may have an account.");
+  }
   return runAsSystem(async () => {
-  const db = await getDb();
-  const count = await userCount();
-  const id = newId("usr");
-  await db.insert("users", {
-    id,
-    email: email.toLowerCase(),
-    name,
-    password_hash: hashPassword(password),
-    role: count === 0 ? "owner" : "member",
-    timezone: "Africa/Nairobi",
-    settings_json: "{}",
-    created_at: nowISO(),
-  });
-  return id;
+    const db = await getDb();
+    const existing = await db.get<{ id: string }>(`SELECT id FROM users WHERE email = ?`, [normalized]);
+    if (existing) return existing.id;
+    const id = newId("usr");
+    await db.insert("users", {
+      id,
+      email: normalized,
+      name,
+      password_hash: hashPassword(password),
+      role: "owner",
+      timezone: "Africa/Nairobi",
+      settings_json: "{}",
+      created_at: nowISO(),
+    });
+    return id;
   });
 }
 

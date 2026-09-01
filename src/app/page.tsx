@@ -9,6 +9,8 @@ import { PageHeader, StatCard, ScoreBar, SectionTitle } from "@/components/widge
 import { Badge, Card, CardContent } from "@/components/ui";
 import { TaskFormDialog } from "@/components/task-form-dialog";
 import { RunBriefButton } from "@/components/quick-actions";
+import { SetupChecklist } from "@/components/setup-checklist";
+import { getSetupStatus } from "@/lib/setup-status";
 
 const statusTone: Record<string, any> = {
   reviewing: "info", preparing: "warning", ready_for_review: "accent", ready_to_submit: "accent",
@@ -24,11 +26,12 @@ function deadlineHref(type: string) {
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const [brief, metrics, projects, approvals] = await Promise.all([
+  const [brief, metrics, projects, approvals, setup] = await Promise.all([
     getDailyBrief(user.id),
     getMetrics(user.id),
     getDb().then((db) => db.query<{ id: string; name: string }>(`SELECT id, name FROM projects WHERE user_id = ? ORDER BY name`, [user.id])),
     getDb().then((db) => db.query(`SELECT id, proposed_action, type FROM approvals WHERE user_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 5`, [user.id])),
+    getSetupStatus(user.id),
   ]);
 
   return (
@@ -38,6 +41,10 @@ export default async function DashboardPage() {
         description={formatDate(brief.generatedAt, true) + " · Your daily command center"}
         action={<div className="flex items-center gap-2"><RunBriefButton /><TaskFormDialog projects={projects} /></div>}
       />
+
+      {/* While the account is still being set up, say so: a grid of zeros is
+          accurate but reads exactly like a broken deployment. */}
+      {setup.remaining > 0 && <SetupChecklist status={setup} />}
 
       {/* Metrics */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

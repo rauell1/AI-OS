@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { formatDate } from "@/lib/utils";
-import { PageHeader } from "@/components/widgets";
+import { EmptyState, PageHeader } from "@/components/widgets";
 import { Badge, Card, CardContent } from "@/components/ui";
 
 const tone: Record<string, any> = {
@@ -42,7 +42,13 @@ export default async function ApplicationsPage() {
             </div>
           </Link>
         ))}
-        {apps.length === 0 && <Card><CardContent><p className="text-sm text-muted">No applications yet. Create one from an opportunity or add manually.</p></CardContent></Card>}
+        {apps.length === 0 && (
+          <EmptyState
+            title="No applications yet"
+            description="An application tracks requirements, questions, documents and deadlines for one thing you are applying to. Start one from a scored opportunity, or add it manually."
+            action={<Link href="/opportunities" className="text-sm text-accent hover:underline">Browse opportunities</Link>}
+          />
+        )}
       </div>
     </div>
   );

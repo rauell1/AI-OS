@@ -24,12 +24,9 @@ export async function login(prev: { error?: string }, formData: FormData): Promi
   // be used to discover whether an account exists. The three causes are very
   // different to fix, though, so the server records which one it was.
   if (!isOwnerEmail(email)) {
-    const configured = ownerEmail();
     console.warn(
-      `[rauell-os] Sign-in rejected: ${maskEmail(email)} is not the owner. ` +
-        (configured
-          ? `OWNER_EMAIL is ${maskEmail(configured)} - the address entered must match it exactly.`
-          : "OWNER_EMAIL is not set, so no address can match.")
+      `[rauell-os] Sign-in rejected: ${maskEmail(email)} is not the owner ` +
+        `(${maskEmail(ownerEmail())}). The address entered must match exactly.`
     );
     return { error: "Invalid email or password." };
   }

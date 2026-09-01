@@ -4,9 +4,15 @@
 
 import { ownerEmail } from "./auth-policy";
 
+// Which account the seed and reset scripts act on. There is only one, so this
+// is not configurable: SEED_EMAIL used to point the seed at an address nobody
+// could sign in as, which is how a second identity ended up in the dashboard.
+export function seedTargetEmail(): string {
+  return ownerEmail();
+}
+
 export const SEED = {
   user: {
-    email: process.env.SEED_EMAIL || ownerEmail() || "royokola3@gmail.com",
     name: process.env.SEED_NAME || "Roy Okola Otieno",
     // No default. A checked-in password becomes a real credential the moment
     // anyone runs the seed against a reachable deployment, so the seed script

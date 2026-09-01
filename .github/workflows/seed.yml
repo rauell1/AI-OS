@@ -67,7 +67,6 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
-          SEED_EMAIL: ${{ secrets.SEED_EMAIL }}
           SEED_NAME: ${{ secrets.SEED_NAME }}
           SEED_FORCE: ${{ inputs.force && '1' || '' }}
         run: npm run db:seed
@@ -81,6 +80,7 @@ jobs:
             echo "- Force re-seed: \`${{ inputs.force }}\`"
             echo "- Result: \`${{ job.status }}\`"
             echo ""
-            echo "Sign in with the email in \`SEED_EMAIL\` (default \`royokola3@gmail.com\`)"
-            echo "and the password stored in the \`SEED_PASSWORD\` secret."
+            echo "Seeds the owner account (the constant in \`src/lib/auth-policy.ts\`)."
+            echo "Sign in with that address. A password is only needed when the"
+            echo "account does not exist yet, from the \`SEED_PASSWORD\` secret."
           } >> "$GITHUB_STEP_SUMMARY"

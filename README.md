@@ -19,8 +19,11 @@ With no `DATABASE_URL` set, the app uses an embedded SQLite file at
 `./data/rauell.db` — no database server required. The schema creates itself on
 first connection, so there is no migration step to run.
 
-Public registration is disabled. Provision the owner account only through the
-controlled seed workflow, using `SEED_EMAIL=royokola3@gmail.com`.
+Public registration is disabled, and there is exactly one account: sign-in is
+gated to the owner address in `src/lib/auth-policy.ts`, and row level security
+scopes every row to that one user id. Provision it through the controlled seed
+workflow. `npm run db:purge-foreign` reports (and with `--confirm` removes) any
+other account a previous seed left behind.
 
 ## Environment
 
@@ -34,12 +37,11 @@ cp .env.example .env.local
 | :--- | :--- | :--- |
 | `APP_URL` / `NEXT_PUBLIC_APP_URL` | production | Canonical application URL. Production is `https://ai-os.rauell.systems`. |
 | `DATABASE_URL` | production | Pooled PostgreSQL connection string. Unset ⇒ embedded SQLite. |
-| `OWNER_EMAIL` | **always** | The only address allowed to sign in. **Unset means every sign-in is refused** — it locks you out. Not `NEXT_PUBLIC_`, so it stays out of the browser bundle. |
 | `AUTH_SECRET` | production | Signs session JWTs. **Unset falls back to a value committed in this repo**, which anyone can use to forge an owner session. |
 | `CRON_SECRET` | for automations | `/api/automations/run` authenticates with this and refuses to run without it. |
 | `TOKEN_ENCRYPTION_KEY` | for integrations | AES-256-GCM key for integration tokens at rest. Must be base64 of **exactly 32 bytes**, or it silently falls back to a dev key. |
 | `RAUELL_DATA_DIR` | no | Override where the SQLite file is written. |
-| `SEED_PASSWORD` / `SEED_EMAIL` / `SEED_NAME` | for seeding | See [Seeding](#seeding). |
+| `SEED_PASSWORD` / `SEED_NAME` | for seeding | See [Seeding](#seeding). |
 
 Generate a secret of the right shape:
 
@@ -73,6 +75,27 @@ endpoint.
 Timestamps are ISO 8601 strings in `TEXT` columns. Date filters are computed in
 application code and bound as parameters — never with `datetime()` or other
 engine-specific SQL, which does not exist in Postgres.
+
+## One account
+
+There is exactly one account, and its address is a constant — `OWNER_EMAIL` in
+`src/lib/auth-policy.ts`, not an environment variable. A variable is one
+deploy-time typo away from locking the owner out or admitting someone else, and
+a second identity reached the dashboard once already. Setting an `OWNER_EMAIL`
+variable has no effect; a value naming anyone else is logged and ignored.
+
+`createUser` refuses any other address, the seed can only target the owner, and
+row level security scopes every row to that single user id. A second account
+cannot sign in and cannot be reached — it only creates a way for the wrong
+identity to surface, which is what earlier versions of the seed did by building
+their own user.
+
+`npm run db:purge-foreign` reports any such leftover account and what it owns.
+Add `-- --confirm` to delete it. It refuses to run when the owner has no row, so
+it can never leave the database with no account at all.
+
+`tests/owner-identity.test.ts` scans every tracked and newly added file and
+fails if any address other than the owner's appears, so this cannot regress.
 
 ## Security
 
@@ -116,26 +139,42 @@ directly.
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run db:migrate` | Report backend, connection target and applied migrations |
 | `npm run db:seed` | Load the master profile (see below) |
-| `npm run db:reset` | Remove the seeded user |
-| `npm run test` | Run the vitest suite once (27 tests: scoring, requirement matching, dedupe, email classification, crypto) |
+| `npm run db:reset` | Clear the owner's data, keeping the account |
+| `npm run db:purge-foreign` | Report any account that is not the owner; `-- --confirm` deletes them and their rows |
+| `npm run test` | Run the vitest suite once (scoring, requirement matching, dedupe, email classification, profile importers, auth policy) |
 | `npm run test:watch` | vitest in watch mode |
 
 Scripts load `.env.local` then `.env` themselves; real environment variables win.
 
 ## Seeding
 
-The seed workflow is the only supported way to provision the owner account;
-the deployed application does not expose account registration.
+The seed loads the master profile — education, employment, skills, projects,
+goals, sample opportunities and tasks — into **one account**, and row level
+security scopes every read by `user_id`, so it matters which one.
 
-To load the master profile instead:
+It targets the owner account and nothing else, so there is nothing to configure:
+
+```bash
+npm run db:seed
+```
+
+`SEED_PASSWORD` is required **only** when that account does not exist yet,
+because the seed then has to create it. There is deliberately no default: a
+committed password is a live credential on any reachable deployment.
 
 ```bash
 SEED_PASSWORD='<a strong password>' npm run db:seed
 ```
 
-There is deliberately no default password: a committed one is a live credential
-on any reachable deployment, so the script refuses to run without
-`SEED_PASSWORD`. Whatever you pass becomes the real login password.
+The seed used to take its address from `SEED_EMAIL`, defaulting to a literal
+that was nobody's real login: it built its own user, hung every row off that id,
+and left the signed-in owner looking at an empty application with no error to
+explain it. That variable is gone.
+
+Re-running against an account that already holds seeded rows is skipped. Set
+`SEED_FORCE=1` to clear that account's data and seed it again; `npm run db:reset`
+clears it without reseeding. Neither deletes the account itself — registration
+is permanently disabled, so there would be no way back in.
 
 It writes to whatever `DATABASE_URL` points at — with a production URL set,
 **it seeds production**.
@@ -144,6 +183,14 @@ Without a local checkout, run the **Seed database** workflow from the Actions
 tab (`workflow_dispatch` only). It needs `DATABASE_URL` and `SEED_PASSWORD` as
 repository secrets and refuses to run if `DATABASE_URL` is missing or is not a
 `postgresql://` string.
+
+### Why the app might read zero everywhere
+
+Every screen counts rows scoped to the signed-in user, so a new account shows
+zeros on every card — correct, and indistinguishable from a broken deployment.
+The dashboard shows a setup checklist while anything is still unconfigured:
+profile imported, AI provider set, `TOKEN_ENCRYPTION_KEY` set, an integration
+connected, first project or opportunity added, an automation scheduled.
 
 ## Deployment
 

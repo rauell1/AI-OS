@@ -4,6 +4,7 @@ import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { SCHEMA_SQL, MIGRATION_NAME } from "./schema";
 import { RLS_SQL } from "./rls";
 import { SESSION_COOKIE, verifySession } from "./session";
@@ -332,6 +333,61 @@ class PgDatabase implements Database {
     }
   }
 
+  // Runs the schema and policy DDL on one dedicated connection, inside a single
+  // transaction, behind a Postgres advisory lock.
+  //
+  // Every other statement in this class takes its own connection and its own
+  // transaction, which is fine for queries and fatal for bootstrap: two cold
+  // starts would interleave `DROP POLICY IF EXISTS` and `CREATE POLICY` and one
+  // would lose with `policy ... already exists`, failing the whole bootstrap and
+  // 500ing whichever page triggered it. The lock serialises them; the single
+  // transaction makes the DDL all-or-nothing, so a crash midway cannot leave a
+  // half-applied schema recorded as complete.
+  async bootstrapExclusive(fn: (run: (sql: string) => Promise<void>) => Promise<void>): Promise<boolean> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      // Released automatically at COMMIT or ROLLBACK, including if this process
+      // dies holding it - so a crashed bootstrap cannot wedge every later boot.
+      await client.query("SELECT pg_advisory_xact_lock($1)", [PG_BOOTSTRAP_LOCK]);
+      // _migrations is system-scoped under RLS.
+      await client.query("SELECT set_config('app.system', 'on', true)");
+      // Re-check inside the lock: the process we queued behind may have just
+      // done the work, and applying it twice is wasted round trips at best.
+      //
+      // Asked via to_regclass rather than by querying _migrations directly. On a
+      // first-ever boot the table does not exist yet, and a failed statement
+      // aborts the whole transaction - so catching that error would leave every
+      // statement after it failing with "current transaction is aborted".
+      const present = await client.query("SELECT to_regclass('_migrations') AS reg");
+      const done = present.rows[0]?.reg
+        ? await client.query("SELECT 1 FROM _migrations WHERE name = $1 LIMIT 1", [PG_BOOTSTRAP_MIGRATION])
+        : { rows: [] as any[] };
+      if (done.rows.length) {
+        await client.query("COMMIT");
+        return false;
+      }
+      await fn(async (sql: string) => {
+        await client.query(sql);
+      });
+      await client.query(
+        "INSERT INTO _migrations (name, applied_at) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        [PG_BOOTSTRAP_MIGRATION, new Date().toISOString()]
+      );
+      await client.query("COMMIT");
+      return true;
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Connection already broken; the original error is what matters.
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   async query<T = Record<string, any>>(sql: string, params?: any[]): Promise<T[]> {
     const res: any = await this.withContext((c) => c.query(toPg(sql), params || []));
     return res.rows as T[];
@@ -382,6 +438,25 @@ type DbProcess = typeof process & { [DB_CACHE_KEY]?: Promise<Database> };
 const dbProcess = process as DbProcess;
 const SQLITE_BOOTSTRAP_MIGRATION = `${MIGRATION_NAME}_sqlite_bootstrap_v3`;
 
+// The Postgres bootstrap records what it applied, and skips when the record is
+// already there. A fixed name would make that skip permanent: edit a policy or
+// add a column and the DDL would never run again. Keying the record on a digest
+// of the schema and policies instead means any change to either produces a new
+// name, so it re-applies exactly once and is skipped from then on.
+const PG_BOOTSTRAP_MIGRATION = `${MIGRATION_NAME}_pg_${createHash("sha256")
+  .update(SCHEMA_SQL)
+  .update(RLS_SQL)
+  .digest("hex")
+  .slice(0, 16)}`;
+
+// Arbitrary but stable: two processes bootstrapping at once must pick the same
+// advisory lock key. Postgres advisory locks take a bigint, so fold a digest of
+// the migration name down into a signed 32-bit integer.
+const PG_BOOTSTRAP_LOCK = (() => {
+  const digest = createHash("sha256").update(PG_BOOTSTRAP_MIGRATION).digest();
+  return digest.readInt32BE(0);
+})();
+
 async function sqliteSchemaIsCurrent(instance: any): Promise<boolean> {
   const table = instance.exec(
     "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_migrations' LIMIT 1"
@@ -407,36 +482,31 @@ async function bootstrap(): Promise<Database> {
     pg.types.setTypeParser(pg.types.builtins.INT8, (value: string) => parseInt(value, 10));
     const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 20 });
     const db = new PgDatabase(pool);
-    // Check if the schema is already current before running massive DDL
+    // Skip the DDL entirely when this exact schema and policy set has already
+    // been applied. The record is keyed on a digest of both, so editing either
+    // re-applies it once rather than never.
     let isCurrent = false;
     try {
-      const row = await db.get(`SELECT 1 FROM _migrations WHERE name = $1 LIMIT 1`, [MIGRATION_NAME]);
+      const row = await runAsSystem(() =>
+        db.get(`SELECT 1 FROM _migrations WHERE name = ? LIMIT 1`, [PG_BOOTSTRAP_MIGRATION])
+      );
       isCurrent = !!row;
     } catch {
+      // _migrations does not exist yet, so nothing has been applied.
       isCurrent = false;
     }
 
-    if (isCurrent) {
-      // We still need to know if vector is supported to allow embeddings to work
-      try {
-        const row = await db.get(`SELECT 1 FROM pg_extension WHERE extname = 'vector'`);
-        db.supportsVectorSearch = !!row;
-      } catch {
-        db.supportsVectorSearch = false;
-      }
-      return db;
-    }
-
-    // Schema and policy DDL predate any user, so it runs in system context.
-    await runAsSystem(async () => {
-      // pgvector is optional. Neon and most managed Postgres offer it, but a
-      // plain server may not, and it is not worth taking the whole app down
-      // for a feature that degrades to keyword search.
-      let hasVector = false;
-      try {
-        await db.run("CREATE EXTENSION IF NOT EXISTS vector");
-        hasVector = true;
-      } catch (err: any) {
+    // pgvector is optional. Neon and most managed Postgres offer it, but a plain
+    // server may not, and it is not worth taking the whole app down for a
+    // feature that degrades to keyword search. Probed on its own connection:
+    // inside the bootstrap transaction a failure here would abort every
+    // statement that followed it.
+    let hasVector = false;
+    try {
+      await runAsSystem(() => db.run("CREATE EXTENSION IF NOT EXISTS vector"));
+      hasVector = true;
+    } catch (err: any) {
+      if (!isCurrent) {
         console.warn(
           "[rauell-os] pgvector is unavailable (" +
             (err?.message?.split("\n")[0] || "unknown error") +
@@ -444,13 +514,19 @@ async function bootstrap(): Promise<Database> {
             "keyword matching. Install the extension to enable similarity search."
         );
       }
-      db.supportsVectorSearch = hasVector;
+    }
+    db.supportsVectorSearch = hasVector;
 
+    if (isCurrent) return db;
+
+    await db.bootstrapExclusive(async (run) => {
       for (const stmt of splitStatements(applyEmbeddingType(SCHEMA_SQL, hasVector))) {
-        await db.run(stmt);
+        await run(stmt);
       }
 
-      // Auto-migrate columns (ignoring errors if they already exist)
+      // Columns added after the fact. Each may already exist, and inside one
+      // transaction a failed statement poisons everything after it - so each
+      // gets a savepoint to roll back to.
       const alters = [
         "ALTER TABLE applications ADD COLUMN interview_granted INTEGER DEFAULT 0",
         "ALTER TABLE applications ADD COLUMN outcome TEXT",
@@ -465,16 +541,20 @@ async function bootstrap(): Promise<Database> {
         ),
       ];
       for (const alter of alters) {
-        try { await db.run(alter); } catch (e) {}
+        await run("SAVEPOINT rauell_alter");
+        try {
+          await run(alter);
+          await run("RELEASE SAVEPOINT rauell_alter");
+        } catch {
+          await run("ROLLBACK TO SAVEPOINT rauell_alter");
+        }
       }
-      // Applied after the tables exist, and idempotent: each policy is dropped
-      // and recreated, so a changed policy takes effect on the next cold start.
-      for (const stmt of splitStatements(RLS_SQL)) await db.run(stmt);
-      await db.run(
-        `INSERT INTO _migrations (name, applied_at) VALUES (?, ?) ON CONFLICT DO NOTHING`,
-        [MIGRATION_NAME, new Date().toISOString()]
-      );
+
+      // Applied after the tables exist. Each policy is dropped and recreated, so
+      // a changed policy takes effect the next time the digest above changes.
+      for (const stmt of splitStatements(RLS_SQL)) await run(stmt);
     });
+
     return db;
   }
 
