@@ -1,0 +1,61 @@
+name: CI
+
+# Runs on every push and pull request. The point is that a regression in the
+# checks that matter — tests, types, the production build, and the rule that no
+# address but the owner's appears in this repository — fails before it merges,
+# rather than being noticed later or never.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # tests/owner-identity.test.ts shells out to `git ls-files`.
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Types
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm run test
+
+      - name: Production build
+        run: npm run build
+        env:
+          # No DATABASE_URL: the build must not need one, and this catches any
+          # change that starts requiring a live database at build time.
+          NODE_ENV: production
+
+  audit:
+    runs-on: ubuntu-latest
+    # Advisory. It reports on what actually ships rather than failing the build
+    # on a dev-only finding — the last audit's one "critical" was vitest's UI
+    # server, which is a dev dependency and never runs in production.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: Production dependencies (fails on high or critical)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Everything, including dev (report only)
+        if: always()
+        run: npm audit || true

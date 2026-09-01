@@ -31,7 +31,7 @@ export function verifyPassword(plain: string, hash: string): boolean {
 
 export async function createSession(user: SessionUser): Promise<string> {
   const ttl = parseInt(process.env.SESSION_TTL || "2592000", 10);
-  const token = await new SignJWT({ email: user.email, name: user.name, role: user.role })
+  const token = await new SignJWT({ email: user.email, name: user.name, role: user.role, epoch: user.epoch })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
     .setIssuer(ISSUER)
@@ -57,11 +57,66 @@ export function clearSessionCookie() {
   cookies().delete(COOKIE);
 }
 
+/**
+ * The signed-in user, or null.
+ *
+ * verifySession checks the token is structurally valid; this also checks it is
+ * still *current* against the account's session epoch, which is what makes
+ * "sign out everywhere" work. That check needs the database, so it lives here
+ * rather than in verifySession - which runs in edge middleware and inside the
+ * data layer's own scope resolution, where a query would recurse.
+ */
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const token = cookies().get(COOKIE)?.value;
-  // Scope for RLS is resolved inside the database layer from this same
-  // cookie, so nothing needs to be established here.
-  return verifySession(token);
+  const user = await verifySession(token);
+  if (!user) return null;
+  if (!(await sessionIsCurrent(user))) return null;
+  return user;
+}
+
+/** Whether a token's epoch still matches the account's. */
+export async function sessionIsCurrent(user: SessionUser): Promise<boolean> {
+  try {
+    const current = await runAsSystem(async () => {
+      const db = await getDb();
+      const row = await db.get<{ session_epoch: number }>(
+        `SELECT session_epoch FROM users WHERE id = ?`,
+        [user.id]
+      );
+      return row ? Number(row.session_epoch) || 0 : null;
+    });
+    // No row means the account is gone; refuse rather than assume.
+    if (current === null) return false;
+    return current === user.epoch;
+  } catch (err: any) {
+    // A database blip must not silently sign the owner out of their own OS, and
+    // the token is already cryptographically valid at this point.
+    console.error(
+      `[rauell-os] Could not check the session epoch: ${err?.message || err}. ` +
+        "Accepting the token on its signature alone."
+    );
+    return true;
+  }
+}
+
+/** The account's current session generation, for minting a new token. */
+export async function currentSessionEpoch(userId: string): Promise<number> {
+  return runAsSystem(async () => {
+    const db = await getDb();
+    const row = await db.get<{ session_epoch: number }>(`SELECT session_epoch FROM users WHERE id = ?`, [userId]);
+    return Number(row?.session_epoch) || 0;
+  });
+}
+
+/**
+ * Invalidates every existing session for the account, including this one.
+ * The only way to revoke a stolen token short of rotating AUTH_SECRET.
+ */
+export async function revokeAllSessions(userId: string): Promise<void> {
+  await runAsSystem(async () => {
+    const db = await getDb();
+    await db.run(`UPDATE users SET session_epoch = COALESCE(session_epoch, 0) + 1 WHERE id = ?`, [userId]);
+  });
 }
 
 export async function requireUser(): Promise<SessionUser> {

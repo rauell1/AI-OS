@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS users (
   timezone TEXT NOT NULL DEFAULT 'Africa/Nairobi',
   settings_json TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL
-);
+,
+  session_epoch INTEGER DEFAULT 0);
 
 CREATE TABLE IF NOT EXISTS profiles (
   user_id TEXT PRIMARY KEY,
@@ -666,6 +667,30 @@ CREATE TABLE IF NOT EXISTS auth_attempts (
   attempted_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_auth_attempts_caller ON auth_attempts(caller, attempted_at);
+
+-- Second factor. The shared secret is encrypted with TOKEN_ENCRYPTION_KEY, the
+-- same key that protects OAuth tokens, so the database alone does not yield it.
+-- last_used_step records the 30-second step a code was accepted for, which is
+-- what stops the same code being replayed inside its own validity window.
+CREATE TABLE IF NOT EXISTS user_mfa (
+  user_id TEXT PRIMARY KEY,
+  secret_encrypted TEXT NOT NULL,
+  confirmed_at TEXT,
+  last_used_step TEXT,
+  created_at TEXT NOT NULL
+);
+
+-- Recovery codes, stored as bcrypt hashes and usable once each. Registration is
+-- permanently disabled, so without these a lost phone would be a permanent
+-- lockout with no way back in.
+CREATE TABLE IF NOT EXISTS mfa_recovery_codes (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+  used_at TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mfa_recovery_user ON mfa_recovery_codes(user_id);
 `;
 
 export const MIGRATION_NAME = "0003_integrations_fix";

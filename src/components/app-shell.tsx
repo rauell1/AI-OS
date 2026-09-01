@@ -6,7 +6,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Inbox, CheckSquare, FolderKanban, Target, FileText, Users, Folder,
-  Bot, Workflow, CheckCheck, Search, Activity, Gavel, Plug, Settings, Menu, X, Bell,
+  Bot, Workflow, CheckCheck, Search, Activity, Gavel, Plug, Settings, ShieldCheck, Menu, X, Bell,
   LogOut, Plus, Command, Sun, Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,7 @@ export const NAV = [
   { href: "/activity", label: "Activity", icon: Activity },
   { href: "/decisions", label: "Decisions", icon: Gavel },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/settings/security", label: "Security", icon: ShieldCheck },
 ];
 
 export function AppShell({ user, unread, approvals, children }: { user: any; unread: number; approvals: number; children: React.ReactNode }) {
