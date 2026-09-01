@@ -33,17 +33,13 @@ async function trigger(req: NextRequest) {
   // seed run, a migration, a test - silently redirects every automation onto
   // someone else's data.
   const email = ownerEmail();
-  if (!email) {
-    console.error("[rauell-os] Automations cannot run: OWNER_EMAIL is not set, so there is no account to run them for.");
-    return NextResponse.json({ error: "OWNER_EMAIL is not configured" }, { status: 500 });
-  }
   const owner = await runAsSystem(async () => {
     const db = await getDb();
     return db.get<{ id: string }>(`SELECT id FROM users WHERE email = ?`, [email]);
   });
   if (!owner) {
-    console.error(`[rauell-os] Automations cannot run: no user row matches OWNER_EMAIL (${maskEmail(email)}).`);
-    return NextResponse.json({ error: "No account matches OWNER_EMAIL" }, { status: 404 });
+    console.error(`[rauell-os] Automations cannot run: no user row for the owner (${maskEmail(email)}).`);
+    return NextResponse.json({ error: "No account for the owner" }, { status: 404 });
   }
   const result = await runAsUser(owner.id, () => runAllDue(owner.id));
   return NextResponse.json(result);

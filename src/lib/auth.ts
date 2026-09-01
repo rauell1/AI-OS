@@ -115,12 +115,9 @@ export async function userCount(): Promise<number> {
 export async function createUser(email: string, name: string, password: string) {
   const normalized = email.trim().toLowerCase();
   if (!isOwnerEmail(normalized)) {
-    const owner = ownerEmail();
     console.error(
       `[rauell-os] Refused to create an account for ${maskEmail(normalized)}: ` +
-        (owner
-          ? `it is not the owner address. Only ${maskEmail(owner)} may have an account.`
-          : "OWNER_EMAIL is not set, so no account can be created.")
+        `it is not the owner address. Only ${maskEmail(ownerEmail())} may have an account.`
     );
     throw new Error("Only the owner address may have an account.");
   }

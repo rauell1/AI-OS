@@ -19,22 +19,13 @@ const confirmed = process.argv.includes("--confirm") || process.env.PURGE_CONFIR
 
 async function main() {
   const owner = ownerEmail();
-  if (!owner) {
-    console.error(
-      "Refusing to purge: OWNER_EMAIL is not set.\n\n" +
-        "Without it there is no way to tell which account to keep, and every\n" +
-        "account would look foreign. Set OWNER_EMAIL to the address you sign in with."
-    );
-    process.exit(1);
-  }
-
   const db = await getDb();
   const ownerRow = await db.get<{ id: string }>(`SELECT id FROM users WHERE email = ?`, [owner]);
   if (!ownerRow) {
     console.error(
-      `Refusing to purge: no account matches OWNER_EMAIL (${maskEmail(owner)}).\n\n` +
+      `Refusing to purge: no account exists for the owner (${maskEmail(owner)}).\n\n` +
         "Deleting every other account would leave the database with no account at\n" +
-        "all, and registration is disabled. Make OWNER_EMAIL and the users table agree first."
+        "all, and registration is disabled. Seed the owner account first."
     );
     process.exit(1);
   }

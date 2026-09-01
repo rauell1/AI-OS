@@ -9,10 +9,6 @@ import { USER_SCOPED, CHILD_SCOPED } from "../src/lib/rls";
 // disabled, so there is no way back through the UI.
 async function main() {
   const email = seedTargetEmail();
-  if (!email) {
-    console.error("Refusing to reset: neither SEED_EMAIL nor OWNER_EMAIL is set, so there is no account to target.");
-    process.exit(1);
-  }
   const db = await getDb();
   const user = await db.get<{ id: string }>(`SELECT id FROM users WHERE email = ?`, [email]);
   if (!user) {

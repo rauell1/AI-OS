@@ -4,16 +4,11 @@
 
 import { ownerEmail } from "./auth-policy";
 
-// Which account the seed and reset scripts act on.
-//
-// There is deliberately no fallback address. The seed used to default to a
-// literal that was nobody's real login: it built its own user, hung every row
-// off that id, and - because row level security scopes every read by user_id -
-// the signed-in owner saw an empty application with no error to explain it.
-// Returning null instead makes the caller say so out loud.
-export function seedTargetEmail(): string | null {
-  const email = (process.env.SEED_EMAIL || ownerEmail() || "").trim().toLowerCase();
-  return email || null;
+// Which account the seed and reset scripts act on. There is only one, so this
+// is not configurable: SEED_EMAIL used to point the seed at an address nobody
+// could sign in as, which is how a second identity ended up in the dashboard.
+export function seedTargetEmail(): string {
+  return ownerEmail();
 }
 
 export const SEED = {

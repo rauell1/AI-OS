@@ -20,10 +20,10 @@ With no `DATABASE_URL` set, the app uses an embedded SQLite file at
 first connection, so there is no migration step to run.
 
 Public registration is disabled, and there is exactly one account: sign-in is
-gated to `OWNER_EMAIL` and row level security scopes every row to that one user
-id. Provision it through the controlled seed workflow, which targets
-`SEED_EMAIL` and falls back to `OWNER_EMAIL`. `npm run db:purge-foreign` reports
-(and with `--confirm` removes) any other account a previous seed left behind.
+gated to the owner address in `src/lib/auth-policy.ts`, and row level security
+scopes every row to that one user id. Provision it through the controlled seed
+workflow. `npm run db:purge-foreign` reports (and with `--confirm` removes) any
+other account a previous seed left behind.
 
 ## Environment
 
@@ -37,12 +37,11 @@ cp .env.example .env.local
 | :--- | :--- | :--- |
 | `APP_URL` / `NEXT_PUBLIC_APP_URL` | production | Canonical application URL. Production is `https://ai-os.rauell.systems`. |
 | `DATABASE_URL` | production | Pooled PostgreSQL connection string. Unset ⇒ embedded SQLite. |
-| `OWNER_EMAIL` | **always** | The only address allowed to sign in. **Unset means every sign-in is refused** — it locks you out. Not `NEXT_PUBLIC_`, so it stays out of the browser bundle. |
 | `AUTH_SECRET` | production | Signs session JWTs. **Unset falls back to a value committed in this repo**, which anyone can use to forge an owner session. |
 | `CRON_SECRET` | for automations | `/api/automations/run` authenticates with this and refuses to run without it. |
 | `TOKEN_ENCRYPTION_KEY` | for integrations | AES-256-GCM key for integration tokens at rest. Must be base64 of **exactly 32 bytes**, or it silently falls back to a dev key. |
 | `RAUELL_DATA_DIR` | no | Override where the SQLite file is written. |
-| `SEED_PASSWORD` / `SEED_EMAIL` / `SEED_NAME` | for seeding | See [Seeding](#seeding). |
+| `SEED_PASSWORD` / `SEED_NAME` | for seeding | See [Seeding](#seeding). |
 
 Generate a secret of the right shape:
 
@@ -79,16 +78,24 @@ engine-specific SQL, which does not exist in Postgres.
 
 ## One account
 
-There is exactly one account. Sign-in is gated to `OWNER_EMAIL`, `createUser`
-refuses any other address, the seed refuses to target one, and row level
-security scopes every row to that single user id. A second account cannot sign
-in and cannot be reached — it only creates a way for the wrong identity to
-surface somewhere, which is what earlier versions of the seed did by building
+There is exactly one account, and its address is a constant — `OWNER_EMAIL` in
+`src/lib/auth-policy.ts`, not an environment variable. A variable is one
+deploy-time typo away from locking the owner out or admitting someone else, and
+a second identity reached the dashboard once already. Setting an `OWNER_EMAIL`
+variable has no effect; a value naming anyone else is logged and ignored.
+
+`createUser` refuses any other address, the seed can only target the owner, and
+row level security scopes every row to that single user id. A second account
+cannot sign in and cannot be reached — it only creates a way for the wrong
+identity to surface, which is what earlier versions of the seed did by building
 their own user.
 
 `npm run db:purge-foreign` reports any such leftover account and what it owns.
-Add `-- --confirm` to delete it. It refuses to run when `OWNER_EMAIL` is unset
-or matches no row, so it can never leave the database with no account at all.
+Add `-- --confirm` to delete it. It refuses to run when the owner has no row, so
+it can never leave the database with no account at all.
+
+`tests/owner-identity.test.ts` scans every tracked and newly added file and
+fails if any address other than the owner's appears, so this cannot regress.
 
 ## Security
 
@@ -145,8 +152,7 @@ The seed loads the master profile — education, employment, skills, projects,
 goals, sample opportunities and tasks — into **one account**, and row level
 security scopes every read by `user_id`, so it matters which one.
 
-It targets `SEED_EMAIL`, falling back to `OWNER_EMAIL`. With `OWNER_EMAIL` set,
-that is the account you sign in as and there is nothing else to configure:
+It targets the owner account and nothing else, so there is nothing to configure:
 
 ```bash
 npm run db:seed
@@ -160,10 +166,10 @@ committed password is a live credential on any reachable deployment.
 SEED_PASSWORD='<a strong password>' npm run db:seed
 ```
 
-If neither `SEED_EMAIL` nor `OWNER_EMAIL` is set the script refuses to run
-rather than guessing. It used to default to a literal address, which built its
-own user, hung every row off that id, and left the signed-in owner looking at an
-empty application with no error to explain it.
+The seed used to take its address from `SEED_EMAIL`, defaulting to a literal
+that was nobody's real login: it built its own user, hung every row off that id,
+and left the signed-in owner looking at an empty application with no error to
+explain it. That variable is gone.
 
 Re-running against an account that already holds seeded rows is skipped. Set
 `SEED_FORCE=1` to clear that account's data and seed it again; `npm run db:reset`
