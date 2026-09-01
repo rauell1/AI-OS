@@ -124,18 +124,34 @@ Scripts load `.env.local` then `.env` themselves; real environment variables win
 
 ## Seeding
 
-The seed workflow is the only supported way to provision the owner account;
-the deployed application does not expose account registration.
+The seed loads the master profile — education, employment, skills, projects,
+goals, sample opportunities and tasks — into **one account**, and row level
+security scopes every read by `user_id`, so it matters which one.
 
-To load the master profile instead:
+It targets `SEED_EMAIL`, falling back to `OWNER_EMAIL`. With `OWNER_EMAIL` set,
+that is the account you sign in as and there is nothing else to configure:
+
+```bash
+npm run db:seed
+```
+
+`SEED_PASSWORD` is required **only** when that account does not exist yet,
+because the seed then has to create it. There is deliberately no default: a
+committed password is a live credential on any reachable deployment.
 
 ```bash
 SEED_PASSWORD='<a strong password>' npm run db:seed
 ```
 
-There is deliberately no default password: a committed one is a live credential
-on any reachable deployment, so the script refuses to run without
-`SEED_PASSWORD`. Whatever you pass becomes the real login password.
+If neither `SEED_EMAIL` nor `OWNER_EMAIL` is set the script refuses to run
+rather than guessing. It used to default to a literal address, which built its
+own user, hung every row off that id, and left the signed-in owner looking at an
+empty application with no error to explain it.
+
+Re-running against an account that already holds seeded rows is skipped. Set
+`SEED_FORCE=1` to clear that account's data and seed it again; `npm run db:reset`
+clears it without reseeding. Neither deletes the account itself — registration
+is permanently disabled, so there would be no way back in.
 
 It writes to whatever `DATABASE_URL` points at — with a production URL set,
 **it seeds production**.
@@ -144,6 +160,14 @@ Without a local checkout, run the **Seed database** workflow from the Actions
 tab (`workflow_dispatch` only). It needs `DATABASE_URL` and `SEED_PASSWORD` as
 repository secrets and refuses to run if `DATABASE_URL` is missing or is not a
 `postgresql://` string.
+
+### Why the app might read zero everywhere
+
+Every screen counts rows scoped to the signed-in user, so a new account shows
+zeros on every card — correct, and indistinguishable from a broken deployment.
+The dashboard shows a setup checklist while anything is still unconfigured:
+profile imported, AI provider set, `TOKEN_ENCRYPTION_KEY` set, an integration
+connected, first project or opportunity added, an automation scheduled.
 
 ## Deployment
 

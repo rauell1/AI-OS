@@ -21,7 +21,7 @@
 // development on sql.js relies on the application filters alone.
 
 /** Tables owning a direct user_id column. */
-const USER_SCOPED = [
+export const USER_SCOPED = [
   "profiles", "education", "employment", "skills", "projects", "organizations",
   "people", "links", "opportunities", "applications", "tasks", "emails",
   "email_threads", "calendar_events", "documents", "references_", "leads",
@@ -33,7 +33,7 @@ const USER_SCOPED = [
 ];
 
 /** Child tables reached through a parent that carries user_id. */
-const CHILD_SCOPED: Array<{ table: string; fk: string; parent: string }> = [
+export const CHILD_SCOPED: Array<{ table: string; fk: string; parent: string }> = [
   { table: "skill_evidence", fk: "skill_id", parent: "skills" },
   { table: "opportunity_scores", fk: "opportunity_id", parent: "opportunities" },
   { table: "application_requirements", fk: "application_id", parent: "applications" },

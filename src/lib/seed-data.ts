@@ -4,9 +4,20 @@
 
 import { ownerEmail } from "./auth-policy";
 
+// Which account the seed and reset scripts act on.
+//
+// There is deliberately no fallback address. The seed used to default to a
+// literal that was nobody's real login: it built its own user, hung every row
+// off that id, and - because row level security scopes every read by user_id -
+// the signed-in owner saw an empty application with no error to explain it.
+// Returning null instead makes the caller say so out loud.
+export function seedTargetEmail(): string | null {
+  const email = (process.env.SEED_EMAIL || ownerEmail() || "").trim().toLowerCase();
+  return email || null;
+}
+
 export const SEED = {
   user: {
-    email: process.env.SEED_EMAIL || ownerEmail() || "royokola3@gmail.com",
     name: process.env.SEED_NAME || "Roy Okola Otieno",
     // No default. A checked-in password becomes a real credential the moment
     // anyone runs the seed against a reachable deployment, so the seed script
