@@ -53,7 +53,7 @@ describe("single-user authentication policy", () => {
 
 describe("maskEmail", () => {
   it("keeps the first character and the domain", () => {
-    expect(maskEmail("royokola3@gmail.com")).toBe("r********@gmail.com");
+    expect(maskEmail("someone1234@gmail.com")).toBe("s**********@gmail.com");
     expect(maskEmail("a@b.com")).toBe("a*@b.com");
   });
 

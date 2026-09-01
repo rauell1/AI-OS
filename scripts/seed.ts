@@ -5,6 +5,7 @@ import { SEED, seedTargetEmail } from "../src/lib/seed-data";
 import { hashPassword } from "../src/lib/auth";
 import { scoreJob, scoreScholarship, buildProfileIndex } from "../src/lib/scoring";
 import { USER_SCOPED, CHILD_SCOPED } from "../src/lib/rls";
+import { isOwnerEmail, maskEmail } from "../src/lib/auth-policy";
 
 const DEFAULT_PREFERRED_SECTORS = ["renewable energy", "solar", "ev", "electric mobility", "water", "energy", "climate", "sustainability", "data", "software", "infrastructure"];
 const DEFAULT_PREFERRED_GEOS = ["kenya", "nairobi", "east africa", "europe", "remote"];
@@ -44,8 +45,22 @@ function targetEmail(): string {
         "The seed attaches its data to one account, and row level security makes\n" +
         "that data invisible to every other account. Guessing the address would\n" +
         "silently seed a user you cannot sign in as.\n\n" +
-        "Set OWNER_EMAIL to the address you sign in with, or pass SEED_EMAIL\n" +
-        "explicitly to seed a different account."
+        "Set OWNER_EMAIL to the address you sign in with."
+    );
+    process.exit(1);
+  }
+  if (!isOwnerEmail(email)) {
+    // This is how the stray account got there in the first place: the seed
+    // created a user at an address nobody could sign in as, and hung every row
+    // off it. There is one account in this application, so the seed may only
+    // ever target it.
+    console.error(
+      `Refusing to seed: ${maskEmail(email)} is not the owner address.\n\n` +
+        "This application has exactly one account - sign-in is gated to\n" +
+        "OWNER_EMAIL and every row is scoped to that user id. Seeding any other\n" +
+        "address creates data nobody can reach.\n\n" +
+        "Unset SEED_EMAIL to seed the owner, or change OWNER_EMAIL if the owner\n" +
+        "has genuinely changed."
     );
     process.exit(1);
   }

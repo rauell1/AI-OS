@@ -19,8 +19,11 @@ With no `DATABASE_URL` set, the app uses an embedded SQLite file at
 `./data/rauell.db` — no database server required. The schema creates itself on
 first connection, so there is no migration step to run.
 
-Public registration is disabled. Provision the owner account only through the
-controlled seed workflow, using `SEED_EMAIL=royokola3@gmail.com`.
+Public registration is disabled, and there is exactly one account: sign-in is
+gated to `OWNER_EMAIL` and row level security scopes every row to that one user
+id. Provision it through the controlled seed workflow, which targets
+`SEED_EMAIL` and falls back to `OWNER_EMAIL`. `npm run db:purge-foreign` reports
+(and with `--confirm` removes) any other account a previous seed left behind.
 
 ## Environment
 
@@ -74,6 +77,19 @@ Timestamps are ISO 8601 strings in `TEXT` columns. Date filters are computed in
 application code and bound as parameters — never with `datetime()` or other
 engine-specific SQL, which does not exist in Postgres.
 
+## One account
+
+There is exactly one account. Sign-in is gated to `OWNER_EMAIL`, `createUser`
+refuses any other address, the seed refuses to target one, and row level
+security scopes every row to that single user id. A second account cannot sign
+in and cannot be reached — it only creates a way for the wrong identity to
+surface somewhere, which is what earlier versions of the seed did by building
+their own user.
+
+`npm run db:purge-foreign` reports any such leftover account and what it owns.
+Add `-- --confirm` to delete it. It refuses to run when `OWNER_EMAIL` is unset
+or matches no row, so it can never leave the database with no account at all.
+
 ## Security
 
 **Row Level Security.** All 45 tables run `ENABLE` + `FORCE ROW LEVEL SECURITY`
@@ -116,8 +132,9 @@ directly.
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run db:migrate` | Report backend, connection target and applied migrations |
 | `npm run db:seed` | Load the master profile (see below) |
-| `npm run db:reset` | Remove the seeded user |
-| `npm run test` | Run the vitest suite once (27 tests: scoring, requirement matching, dedupe, email classification, crypto) |
+| `npm run db:reset` | Clear the owner's data, keeping the account |
+| `npm run db:purge-foreign` | Report any account that is not the owner; `-- --confirm` deletes them and their rows |
+| `npm run test` | Run the vitest suite once (scoring, requirement matching, dedupe, email classification, profile importers, auth policy) |
 | `npm run test:watch` | vitest in watch mode |
 
 Scripts load `.env.local` then `.env` themselves; real environment variables win.

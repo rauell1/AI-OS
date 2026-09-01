@@ -5,7 +5,7 @@
 The application implements OAuth, encrypted token storage, token refresh and data synchronization for Gmail, Google Calendar and Google Drive.
 
 1. Create a Google Cloud project and enable the Gmail API, Google Calendar API and Google Drive API.
-2. Configure the OAuth consent screen as **External** and add `royokola3@gmail.com` as a test user.
+2. Configure the OAuth consent screen as **External** and add the address in `OWNER_EMAIL` as a test user.
 3. Create an OAuth client with application type **Web application**.
 4. Add this exact local redirect URI:
 
