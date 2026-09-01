@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getAttachment } from "@/lib/chat-memory";
+import { serveHeaders } from "@/lib/file-serving";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,9 +13,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const attachment = await getAttachment(user.id, params.id);
   if (!attachment) return NextResponse.json({ error: "File not found" }, { status: 404 });
 
+  const { contentType, disposition } = serveHeaders(attachment.mime_type, attachment.name);
   const headers = {
-    "Content-Type": String(attachment.mime_type),
-    "Content-Disposition": `inline; filename="${String(attachment.name).replace(/["\r\n]/g, "_")}"`,
+    "Content-Type": contentType,
+    "Content-Disposition": disposition,
     "Cache-Control": "private, max-age=3600",
   };
   if (attachment.storage_provider === "vercel-blob") {

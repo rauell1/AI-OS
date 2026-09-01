@@ -1,12 +1,14 @@
 import { getDb, runAsUser } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { aiProviderStatus } from "@/lib/ai";
 
 export default async function PrivacyDashboard() {
   const user = await requireUser();
   const db = await getDb();
   
   const integrations = await db.query(`SELECT * FROM integrations WHERE user_id = ?`, [user.id]);
+  const aiProviders = aiProviderStatus().filter((p) => p.configured);
   
   async function revokeAccess(formData: FormData) {
     "use server";
@@ -47,6 +49,53 @@ export default async function PrivacyDashboard() {
             </div>
           ))
         )}
+      </div>
+
+      <h2 className="mt-10 mb-2 text-xl font-semibold">Where your data goes</h2>
+      <p className="mb-4 text-sm text-zinc-400">
+        Everything below leaves this application. Everything not listed stays in your own database.
+      </p>
+      <div className="space-y-3 text-sm">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+          <p className="font-medium">Your database</p>
+          <p className="mt-1 text-zinc-400">
+            Neon PostgreSQL, over TLS. Passwords are stored as bcrypt hashes and integration tokens
+            are encrypted with AES-256-GCM before they are written, so neither is readable from the
+            database alone. Row level security scopes every query to your account.
+          </p>
+        </div>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+          <p className="font-medium">Connected services</p>
+          <p className="mt-1 text-zinc-400">
+            {integrations.filter((i) => i.status === "connected").length > 0
+              ? `Read access to ${integrations.filter((i) => i.status === "connected").map((i) => i.provider).join(", ")}. Revoking above deletes the stored token immediately.`
+              : "None connected."}
+          </p>
+        </div>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+          <p className="font-medium">AI providers</p>
+          {aiProviders.length > 0 ? (
+            <p className="mt-1 text-zinc-400">
+              Text you ask the assistant about is sent to{" "}
+              <span className="text-zinc-200">{aiProviders.map((p) => p.provider).join(", ")}</span>{" "}
+              to be processed — that includes email bodies when you triage them, CV text when you
+              tailor an application, and opportunity descriptions when they are scored. This is how
+              those features work; there is no on-device model. Scoring, matching and deduplication
+              are rule-based and never leave this application.
+            </p>
+          ) : (
+            <p className="mt-1 text-zinc-400">
+              None configured, so nothing is sent to a model provider. AI features are inactive.
+            </p>
+          )}
+        </div>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+          <p className="font-medium">Never sent anywhere</p>
+          <p className="mt-1 text-zinc-400">
+            Your password hash and your stored OAuth tokens. Neither is included in an account
+            export, and neither is written to a log.
+          </p>
+        </div>
       </div>
     </div>
   );
