@@ -1,3 +1,5 @@
+const isDev = process.env.NODE_ENV !== "production";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -35,7 +37,12 @@ const nextConfig = {
             // and a fixed list of hosts anything may be fetched from.
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com",
+              // 'unsafe-eval' in development only: Next's dev bundler and its
+              // React refresh runtime evaluate strings, and without it `next dev`
+              // never hydrates - the sign-in form falls back to a native GET
+              // submit, which puts the password in the URL. The production
+              // bundle needs no eval, so it does not get the allowance.
+              `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://va.vercel-scripts.com`,
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https:",
               "font-src 'self' data:",
