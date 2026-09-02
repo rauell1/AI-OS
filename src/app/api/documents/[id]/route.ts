@@ -10,11 +10,12 @@ export const dynamic = "force-dynamic";
 
 const DOC_DIR = path.join(process.cwd(), "data", "documents");
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const db = await getDb();
-  const doc = await db.get(`SELECT * FROM documents WHERE id = ? AND user_id = ?`, [params.id, user.id]);
+  const doc = await db.get(`SELECT * FROM documents WHERE id = ? AND user_id = ?`, [id, user.id]);
   if (!doc || !doc.file_path) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (doc.storage_provider === "google_drive" && /^https:\/\//.test(doc.file_path)) {
     return NextResponse.redirect(doc.file_path);
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   // doc.file_path is stored data, and a Drive sync can put anything in it.
   const filePath = resolveWithin(DOC_DIR, doc.file_path);
   if (!filePath) {
-    console.error(`[rauell-os] Refused to serve document ${params.id}: stored path escapes the document directory.`);
+    console.error(`[rauell-os] Refused to serve document ${id}: stored path escapes the document directory.`);
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (!fs.existsSync(filePath)) return NextResponse.json({ error: "File missing" }, { status: 404 });

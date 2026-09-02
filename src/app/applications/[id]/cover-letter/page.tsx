@@ -3,11 +3,14 @@ import { requireUser } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
-export default async function CoverLetterWorkspace({ params }: { params: { id: string } }) {
+export default async function CoverLetterWorkspace({ params }: { params: Promise<{ id: string }> }) {
+  // Resolved before the server action below closes over it: params is a promise
+  // from Next 15 on, and a promise cannot be a bound argument to a server action.
+  const { id } = await params;
   const user = await requireUser();
   const db = await getDb();
   
-  const app = await db.get(`SELECT * FROM applications WHERE id = ? AND user_id = ?`, [params.id, user.id]);
+  const app = await db.get(`SELECT * FROM applications WHERE id = ? AND user_id = ?`, [id, user.id]);
   if (!app) return notFound();
   
   const versions = await db.query(`SELECT * FROM application_versions WHERE application_id = ? AND kind = 'cover_letter' ORDER BY version DESC`, [app.id]);
@@ -19,12 +22,12 @@ export default async function CoverLetterWorkspace({ params }: { params: { id: s
     const db = await getDb();
     const content = formData.get("content") as string;
     
-    const v = await db.query(`SELECT version FROM application_versions WHERE application_id = ? AND kind = 'cover_letter' ORDER BY version DESC LIMIT 1`, [params.id]);
+    const v = await db.query(`SELECT version FROM application_versions WHERE application_id = ? AND kind = 'cover_letter' ORDER BY version DESC LIMIT 1`, [id]);
     const nextVersion = v.length > 0 ? v[0].version + 1 : 1;
     
     await db.insert("application_versions", {
       id: "cvl_" + Date.now(),
-      application_id: params.id,
+      application_id: id,
       kind: "cover_letter",
       version: nextVersion,
       title: `Version ${nextVersion}`,
@@ -33,7 +36,7 @@ export default async function CoverLetterWorkspace({ params }: { params: { id: s
       created_at: new Date().toISOString()
     });
     
-    revalidatePath(`/applications/${params.id}/cover-letter`);
+    revalidatePath(`/applications/${id}/cover-letter`);
   }
 
   return (

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useFormState } from "react-dom";
 import { AlertTriangle, CheckCircle2, Loader2, Upload } from "lucide-react";
 
 export interface ImportResult {
@@ -18,7 +17,7 @@ export function ImportForm({
   action: (prev: ImportResult | null, formData: FormData) => Promise<ImportResult>;
   aiOn: boolean;
 }) {
-  const [state, formAction] = useFormState(action, null);
+  const [state, formAction] = React.useActionState(action, null);
   const [pending, setPending] = React.useState(false);
 
   React.useEffect(() => {

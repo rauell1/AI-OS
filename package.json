@@ -39,13 +39,13 @@
     "jose": "^5.9.6",
     "jszip": "^3.10.1",
     "lucide-react": "^0.441.0",
-    "next": "^14.2.35",
+    "next": "15.5.25",
     "nextjs-toploader": "^3.9.17",
     "openai": "^7.8.0",
     "pdf-parse": "^1.1.1",
     "pg": "^8.12.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "sql.js": "^1.10.3",
     "tailwind-merge": "^2.5.2",
     "zod": "^3.23.8"
@@ -55,14 +55,17 @@
     "@types/node": "^20.14.0",
     "@types/pdf-parse": "^1.1.5",
     "@types/pg": "^8.11.6",
-    "@types/react": "^18.3.5",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.4",
     "@types/sql.js": "^1.4.9",
     "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.41",
+    "postcss": "^8.5.26",
     "tailwindcss": "^3.4.10",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4",
-    "vitest": "^2.1.9"
+    "vitest": "4.1.11"
+  },
+  "overrides": {
+    "postcss": "^8.5.26"
   }
 }

@@ -7,10 +7,11 @@ import { serveHeaders } from "@/lib/file-serving";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const attachment = await getAttachment(user.id, params.id);
+  const attachment = await getAttachment(user.id, id);
   if (!attachment) return NextResponse.json({ error: "File not found" }, { status: 404 });
 
   const { contentType, disposition } = serveHeaders(attachment.mime_type, attachment.name);

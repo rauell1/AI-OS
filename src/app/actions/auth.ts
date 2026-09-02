@@ -45,7 +45,7 @@ export async function login(prev: LoginState, formData: FormData): Promise<Login
 
   // Checked before the password is verified, so a locked-out caller cannot use
   // the timing of a bcrypt comparison as an oracle either.
-  const caller = callerKey(headers());
+  const caller = callerKey(await headers());
   const limit = await checkSignInAllowed(caller);
   if (!limit.allowed) {
     console.warn(
@@ -128,7 +128,8 @@ export async function verifyMfa(prev: LoginState, formData: FormData): Promise<L
     return { error: "That took too long. Enter your email and password again." };
   }
 
-  const caller = `mfa:${callerKey(headers())}`;
+  const passwordStepCaller = callerKey(await headers());
+  const caller = `mfa:${passwordStepCaller}`;
   const limit = await checkSignInAllowed(caller);
   if (!limit.allowed) {
     console.warn(
@@ -175,7 +176,7 @@ export async function verifyMfa(prev: LoginState, formData: FormData): Promise<L
   }
   await clearPendingMfa();
   await clearSignInAttempts(caller);
-  await clearSignInAttempts(callerKey(headers()));
+  await clearSignInAttempts(passwordStepCaller);
   await setSessionCookie({
     id: user.id,
     email: user.email,
@@ -196,7 +197,10 @@ export async function register(_prev: { error?: string }, _formData: FormData): 
 }
 
 export async function logout() {
-  clearSessionCookie();
+  // Awaited: cookies() is asynchronous from Next 15 on, so without this the
+  // redirect below would throw before the deletion was ever applied and the
+  // session cookie would survive signing out.
+  await clearSessionCookie();
   redirect("/login");
 }
 

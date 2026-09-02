@@ -9,10 +9,11 @@ import { TaskRow } from "@/components/task-controls";
 import { ServerActionTextarea } from "@/components/editable";
 import { updateProjectField } from "@/app/actions/projects";
 
-export default async function ProjectDetail({ params }: { params: { id: string } }) {
+export default async function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const user = await requireUser();
   const db = await getDb();
-  const project = await db.get(`SELECT * FROM projects WHERE id = ? AND user_id = ?`, [params.id, user.id]);
+  const project = await db.get(`SELECT * FROM projects WHERE id = ? AND user_id = ?`, [id, user.id]);
   if (!project) return <p className="text-sm text-muted">Project not found.</p>;
   const tasks = await db.query(`SELECT * FROM tasks WHERE project_id = ? AND status NOT IN ('done','cancelled') ORDER BY priority DESC`, [project.id]);
   const notes = await db.query(`SELECT * FROM notes WHERE entity_type='project' AND entity_id = ? ORDER BY created_at DESC`, [project.id]);

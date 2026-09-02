@@ -26,7 +26,7 @@ export async function startPendingMfa(userId: string): Promise<void> {
     .setIssuedAt()
     .setExpirationTime(`${PENDING_TTL_SECONDS}s`)
     .sign(sessionSecret());
-  cookies().set(PENDING_COOKIE, token, {
+  (await cookies()).set(PENDING_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -36,7 +36,7 @@ export async function startPendingMfa(userId: string): Promise<void> {
 }
 
 export async function readPendingMfa(): Promise<PendingMfa | null> {
-  const token = cookies().get(PENDING_COOKIE)?.value;
+  const token = (await cookies()).get(PENDING_COOKIE)?.value;
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, sessionSecret(), { issuer: PENDING_ISSUER });
@@ -48,5 +48,5 @@ export async function readPendingMfa(): Promise<PendingMfa | null> {
 }
 
 export async function clearPendingMfa(): Promise<void> {
-  cookies().delete(PENDING_COOKIE);
+  (await cookies()).delete(PENDING_COOKIE);
 }

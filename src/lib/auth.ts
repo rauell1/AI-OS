@@ -44,7 +44,8 @@ export async function createSession(user: SessionUser): Promise<string> {
 export async function setSessionCookie(user: SessionUser) {
   const token = await createSession(user);
   const ttl = parseInt(process.env.SESSION_TTL || "2592000", 10);
-  cookies().set(COOKIE, token, {
+  const jar = await cookies();
+  jar.set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -53,8 +54,8 @@ export async function setSessionCookie(user: SessionUser) {
   });
 }
 
-export function clearSessionCookie() {
-  cookies().delete(COOKIE);
+export async function clearSessionCookie() {
+  (await cookies()).delete(COOKIE);
 }
 
 /**
@@ -67,7 +68,7 @@ export function clearSessionCookie() {
  * data layer's own scope resolution, where a query would recurse.
  */
 export async function getCurrentUser(): Promise<SessionUser | null> {
-  const token = cookies().get(COOKIE)?.value;
+  const token = (await cookies()).get(COOKIE)?.value;
   const user = await verifySession(token);
   if (!user) return null;
   if (!(await sessionIsCurrent(user))) return null;

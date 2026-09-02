@@ -62,7 +62,7 @@ async function resolveContext(): Promise<DbContext | undefined> {
     // Imported lazily: this module also runs in plain scripts, where
     // next/headers does not exist and cookies() has no request to read.
     const { cookies } = await import("next/headers");
-    const token = cookies().get(SESSION_COOKIE)?.value;
+    const token = (await cookies()).get(SESSION_COOKIE)?.value;
     const user = await verifySession(token);
     if (user) return { userId: user.id };
   } catch (err: any) {

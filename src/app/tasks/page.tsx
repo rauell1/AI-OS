@@ -10,9 +10,14 @@ import { autoPrioritizeForm } from "@/app/actions/tasks";
 
 const FILTERS = ["all", "inbox", "next", "in_progress", "waiting", "blocked", "scheduled", "done", "cancelled"];
 
-export default async function TasksPage({ searchParams }: { searchParams: { status?: string } }) {
+export default async function TasksPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
+  const params = await searchParams;
   const user = await requireUser();
-  const status = searchParams.status && searchParams.status !== "all" ? searchParams.status : null;
+  const status = params.status && params.status !== "all" ? params.status : null;
   const db = await getDb();
   const sql = `SELECT * FROM tasks WHERE user_id = ? ${status ? "AND status = ?" : ""} ORDER BY (due_date IS NULL), due_date ASC, priority DESC`;
   const [tasks, countRows, projects] = await Promise.all([

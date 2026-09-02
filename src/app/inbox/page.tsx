@@ -8,9 +8,14 @@ import { addEmailForm, deleteEmailForm } from "@/app/actions/email";
 
 const CATS = ["needs_response", "waiting", "important", "application", "scholarship", "job", "client", "lead", "project", "finance", "newsletter", "reference", "low_priority", "inbox"];
 
-export default async function InboxPage({ searchParams }: { searchParams: { category?: string } }) {
+export default async function InboxPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string }>;
+}) {
+  const params = await searchParams;
   const user = await requireUser();
-  const cat = searchParams.category;
+  const cat = params.category;
   const db = await getDb();
   const emails = await db.query(
     `SELECT * FROM emails WHERE user_id = ? ${cat ? "AND category = ?" : ""} ORDER BY received_at DESC`,

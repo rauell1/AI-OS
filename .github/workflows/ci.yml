@@ -49,20 +49,24 @@ jobs:
           cache: npm
       - run: npm ci
 
-      # Gated at critical for production dependencies only.
+      # Gated at "moderate" for production dependencies.
       #
-      # Not "high", though that was the first instinct: the two highs today are
-      # Next 14 and its bundled postcss, and npm's only fix for either is
-      # next@16 - a major upgrade with real migration work behind it
-      # (cookies() and headers() became async in 15, and this codebase uses
-      # both in the auth path). Failing every build on a finding that cannot be
-      # fixed in this repository teaches everyone to ignore the check, which
-      # costs more than it buys. The upgrade is tracked as its own work.
-      - name: Production dependencies (fails on critical)
-        run: npm audit --omit=dev --audit-level=critical
+      # This was pinned at "critical" while the tree still carried Next 14,
+      # whose advisories had no fix short of a major upgrade - a gate nobody can
+      # act on teaches everyone to ignore the check. That upgrade has happened
+      # and production dependencies now report zero findings at every severity,
+      # so the gate is set where it belongs: anything new that reaches what
+      # actually ships stops the build, while it is still one dependency old and
+      # cheap to fix.
+      - name: Production dependencies (fails on moderate and above)
+        run: npm audit --omit=dev --audit-level=moderate
 
-      # Reported, never gating. Dev-only findings do not ship: the last
-      # "critical" here was vitest's UI server, which nothing in production runs.
-      - name: Full report, including dev dependencies
+      # Dev dependencies are gated too, one step looser, because they do not
+      # ship: a finding here is in the test runner or the toolchain.
+      - name: Dev dependencies (fails on high and above)
+        if: always()
+        run: npm audit --audit-level=high
+
+      - name: Full report
         if: always()
         run: npm audit || true

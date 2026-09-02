@@ -30,7 +30,7 @@ export async function getAuthUrl(provider: Provider): Promise<{ url: string | nu
   const meta = providerMeta().find((m) => m.key === provider);
   if (!meta?.configured) return { url: null, configured: false };
   const state = randomUUID();
-  cookies().set("rauell_oauth_state", state, {
+  (await cookies()).set("rauell_oauth_state", state, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
