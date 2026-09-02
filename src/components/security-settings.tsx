@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useFormState } from "react-dom";
 import { AlertTriangle, Check, Copy, KeyRound, ShieldCheck, ShieldOff } from "lucide-react";
 import { Button, Input, Label } from "@/components/ui";
 import {
@@ -49,8 +48,8 @@ function Codes({ codes }: { codes: string[] }) {
 
 export function SecuritySettings({ status, email }: { status: MfaStatus; email: string }) {
   const [offer, setOffer] = React.useState<MfaActionState | null>(null);
-  const [confirmState, confirmAction] = useFormState(confirmMfaEnrolment, {} as MfaActionState);
-  const [disableState, disableAction] = useFormState(disableMfaAction, {} as MfaActionState);
+  const [confirmState, confirmAction] = React.useActionState(confirmMfaEnrolment, {} as MfaActionState);
+  const [disableState, disableAction] = React.useActionState(disableMfaAction, {} as MfaActionState);
   const [misc, setMisc] = React.useState<MfaActionState | null>(null);
 
   const enabled = status.confirmed;

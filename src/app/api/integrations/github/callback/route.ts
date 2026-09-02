@@ -12,8 +12,9 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const state = req.nextUrl.searchParams.get("state") || "";
   if (!code) return NextResponse.redirect(new URL("/integrations?error=missing_code", req.url));
-  const expected = cookies().get("rauell_oauth_state")?.value;
-  cookies().delete("rauell_oauth_state");
+  const jar = await cookies();
+  const expected = jar.get("rauell_oauth_state")?.value;
+  jar.delete("rauell_oauth_state");
   if (!expected || state !== expected) {
     return NextResponse.redirect(new URL("/integrations?error=invalid_oauth_state", req.url));
   }

@@ -13,8 +13,9 @@ export async function GET(req: NextRequest) {
   const state = req.nextUrl.searchParams.get("state") || "";
   const [provider, nonce] = state.split(":") as ["gmail" | "calendar" | "drive", string];
   if (!code) return NextResponse.redirect(new URL("/integrations?error=missing_code", req.url));
-  const expected = cookies().get("rauell_oauth_state")?.value;
-  cookies().delete("rauell_oauth_state");
+  const jar = await cookies();
+  const expected = jar.get("rauell_oauth_state")?.value;
+  jar.delete("rauell_oauth_state");
   if (!expected || !nonce || expected !== nonce || !["gmail", "calendar", "drive"].includes(provider)) {
     return NextResponse.redirect(new URL("/integrations?error=invalid_oauth_state", req.url));
   }

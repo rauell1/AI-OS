@@ -12,10 +12,11 @@ import {
 
 const strengthTone: Record<string, any> = { strong: "success", developing: "warning", partial: "info", missing: "danger" };
 
-export default async function ApplicationDetail({ params }: { params: { id: string } }) {
+export default async function ApplicationDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const user = await requireUser();
   const db = await getDb();
-  const app = await db.get(`SELECT * FROM applications WHERE id = ? AND user_id = ?`, [params.id, user.id]);
+  const app = await db.get(`SELECT * FROM applications WHERE id = ? AND user_id = ?`, [id, user.id]);
   if (!app) return <p className="text-sm text-muted">Application not found.</p>;
 
   const [org, opp, requirements, questions, versions, events, profile] = await Promise.all([

@@ -2,15 +2,14 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { useFormState } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { Bot, Loader2 } from "lucide-react";
 import { Button, Input, Label } from "@/components/ui";
 import { login, verifyMfa } from "@/app/actions/auth";
 
 export function AuthScreen() {
-  const [state, action] = useFormState(login, {});
-  const [mfaState, mfaAction] = useFormState(verifyMfa, {});
+  const [state, action] = React.useActionState(login, {});
+  const [mfaState, mfaAction] = React.useActionState(verifyMfa, {});
   const [pending, setPending] = React.useState(false);
   const params = useSearchParams();
   const next = params.get("next") || "/";

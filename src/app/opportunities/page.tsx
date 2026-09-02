@@ -9,9 +9,14 @@ import { OpportunityRow } from "@/components/opportunity-controls";
 
 const TYPES = ["all", "job", "scholarship", "programme", "fellowship", "grant"];
 
-export default async function OpportunitiesPage({ searchParams }: { searchParams: { type?: string } }) {
+export default async function OpportunitiesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string }>;
+}) {
+  const params = await searchParams;
   const user = await requireUser();
-  const type = searchParams.type && searchParams.type !== "all" ? searchParams.type : null;
+  const type = params.type && params.type !== "all" ? params.type : null;
   const db = await getDb();
   const sql = `SELECT o.*, s.overall, s.recommendation FROM opportunities o
     LEFT JOIN opportunity_scores s ON s.opportunity_id = o.id
