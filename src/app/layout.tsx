@@ -1,7 +1,10 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { PATHNAME_HEADER, isPublicPath } from "@/lib/public-paths";
 import { getDb, runAsUser } from "@/lib/db";
 import { AppShell } from "@/components/app-shell";
 import NextTopLoader from 'nextjs-toploader';
@@ -63,9 +66,27 @@ async function AuthenticatedShell({ user, children }: { user: Awaited<ReturnType
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
-  const isPublic = !user; // login is handled by middleware; treat missing user as public
 
-  if (isPublic) {
+  // No user on a page that needs one means the token is structurally valid -
+  // middleware checked that much and let the request through - but no longer
+  // current, which is what "sign out everywhere" does to it. Only the database
+  // knows the account's session epoch, and the edge runtime cannot read it, so
+  // this is the first place the question can be answered.
+  //
+  // It has to be answered HERE rather than in the page. The layout is the top
+  // of the tree, so nothing has been flushed yet and redirect() can still send
+  // a real 307. By the time a page body runs, the shell has begun streaming
+  // with a 200 that can no longer become a redirect - which is why a revoked
+  // session used to land on a blank page instead of being asked to sign in.
+  if (!user) {
+    const pathname = (await headers()).get(PATHNAME_HEADER) || "";
+    // Never on /login itself: that would loop.
+    if (pathname && !isPublicPath(pathname)) {
+      redirect(`/login?next=${encodeURIComponent(pathname)}`);
+    }
+  }
+
+  if (!user) {
     return (
       <html lang="en">
         <head>

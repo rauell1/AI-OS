@@ -68,6 +68,15 @@ export async function regenerateCodesAction(): Promise<MfaActionState> {
 export async function signOutEverywhereAction(): Promise<MfaActionState> {
   const user = await requireUser();
   await revokeAllSessions(user.id);
-  // Including this one: the page will bounce to /login on the next request.
+  // Including this one: the epoch bump makes this browser's token stale like
+  // all the others, and the root layout turns that into a redirect to /login on
+  // the next navigation.
+  //
+  // Deliberately does NOT clear this browser's cookie as well. That looks
+  // tidier and breaks the page: the cookie would be gone for the re-render
+  // Next performs as part of this very action, so the layout would redirect
+  // mid-action, the render fails, and the client router is left showing a
+  // stale shell under a /login URL. The token being dead is what matters, not
+  // whether the browser is still carrying it.
   return { notice: "Every session has been signed out, including this one." };
 }
